@@ -1,4 +1,0 @@
-feat(dashboard): introduce useApiQuery module
-
-Additional updates:
-- feat(dashboard): introduce api-types module
