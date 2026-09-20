@@ -6,6 +6,7 @@ let workers: Worker[] = [];
 let controlInterval: NodeJS.Timeout | null = null;
 let timeoutHandle: NodeJS.Timeout | null = null;
 let abortListener: (() => void) | null = null;
+let onStopped: (() => void) | null = null;
 
 const workerCode = `
   const { parentPort } = require('worker_threads');
@@ -30,8 +31,10 @@ const workerCode = `
   }
 `;
 
-export function startCpuPressure(targetPercentage: number, durationMs: number) {
+/** `onStop` runs once when this pressure ends: by stopCpuPressure(), its duration elapsing, or a watchdog abort. */
+export function startCpuPressure(targetPercentage: number, durationMs: number, onStop?: () => void) {
   if (controlInterval) stopCpuPressure();
+  onStopped = onStop ?? null;
   
   abortListener = () => stopCpuPressure();
   WatchdogEvents.on('ABORT_PRESSURE', abortListener);
@@ -86,4 +89,8 @@ export function stopCpuPressure() {
   }
   workers.forEach(w => w.terminate());
   workers = [];
+
+  const callback = onStopped;
+  onStopped = null;
+  callback?.();
 }
