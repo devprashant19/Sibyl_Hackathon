@@ -1,0 +1,4 @@
+test(ui): add coverage for
+
+Additional updates:
+- feat(worker): introduce handler module
