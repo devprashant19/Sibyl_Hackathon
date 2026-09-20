@@ -82,6 +82,9 @@ they cannot drift from what it renders:
 | ![Run detail](docs/screenshots/run-detail.png) | ![Trends](docs/screenshots/trends.png) |
 | **Run detail.** The concrete fault schedule the strategy chose, the captured event timeline with the injected fault named on each event. | **Promise trends.** Each promise's fail rate per session. |
 
+![Light Mode UI](docs/screenshots/runs-light.png)
+*Run explorer in light mode.*
+
 ---
 
 ## Run it

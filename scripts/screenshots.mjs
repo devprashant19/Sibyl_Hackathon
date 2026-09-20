@@ -58,44 +58,57 @@ try {
   log('dashboard up');
 
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
-  const errors = [];
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
+  
+  for (const theme of ['dark', 'light']) {
+    log(`Capturing ${theme} mode screenshots...`);
+    const suffix = theme === 'light' ? '-light' : '';
+    const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+    const errors = [];
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto('http://localhost:3100/', { waitUntil: 'domcontentloaded', timeout: 180_000 });
-  await page.waitForTimeout(6000);
-  await page.screenshot({ path: `${out}/landing.png`, fullPage: false });
-  log('landing page captured');
+    await page.goto('http://localhost:3100/', { waitUntil: 'domcontentloaded', timeout: 180_000 });
+    
+    if (theme === 'light') {
+      await page.evaluate(() => localStorage.setItem('theme', 'light'));
+      await page.reload({ waitUntil: 'domcontentloaded' });
+    }
 
-  await page.goto('http://localhost:3100/runs', { waitUntil: 'domcontentloaded', timeout: 180_000 });
-  await page.waitForTimeout(8000);
-  await page.screenshot({ path: `${out}/runs.png`, fullPage: false });
-  const bodyText = await page.locator('body').innerText();
-  log('runs page mentions FAILED:', /FAILED/i.test(bodyText), '| promise id:', /charge-at-most-once|no-lost-sales/.test(bodyText));
+    await page.waitForTimeout(6000);
+    await page.screenshot({ path: `${out}/landing${suffix}.png`, fullPage: false });
+    log('landing page captured');
 
-  // Open a failed run: click the first element mentioning FAILED that looks clickable.
-  const candidate = page.locator('a, button, tr, li, [role=button]').filter({ hasText: /FAILED/ }).first();
-  if (await candidate.count()) {
-    await candidate.click();
-    await page.waitForTimeout(4000);
-    // The list already shows the first run's header; scroll the detail pane to its schedule and timeline.
-    await page.mouse.move(1000, 600);
-    await page.mouse.wheel(0, 700);
-    await page.waitForTimeout(1000);
-    await page.screenshot({ path: `${out}/run-detail.png`, fullPage: false });
-    const t = await page.locator('body').innerText();
-    log('detail shows replay command:', /sibyl replay/.test(t), '| failed promise:', /charge-at-most-once|no-lost-sales/.test(t));
-  } else {
-    log('no clickable FAILED element found');
+    await page.goto('http://localhost:3100/runs', { waitUntil: 'domcontentloaded', timeout: 180_000 });
+    await page.waitForTimeout(8000);
+    await page.screenshot({ path: `${out}/runs${suffix}.png`, fullPage: false });
+    const bodyText = await page.locator('body').innerText();
+    log('runs page mentions FAILED:', /FAILED/i.test(bodyText), '| promise id:', /charge-at-most-once|no-lost-sales/.test(bodyText));
+
+    // Open a failed run: click the first element mentioning FAILED that looks clickable.
+    const candidate = page.locator('a, button, tr, li, [role=button]').filter({ hasText: /FAILED/ }).first();
+    if (await candidate.count()) {
+      await candidate.click();
+      await page.waitForTimeout(4000);
+      // The list already shows the first run's header; scroll the detail pane to its schedule and timeline.
+      await page.mouse.move(1000, 600);
+      await page.mouse.wheel(0, 700);
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: `${out}/run-detail${suffix}.png`, fullPage: false });
+      const t = await page.locator('body').innerText();
+      log('detail shows replay command:', /sibyl replay/.test(t), '| failed promise:', /charge-at-most-once|no-lost-sales/.test(t));
+    } else {
+      log('no clickable FAILED element found');
+    }
+
+    await page.goto('http://localhost:3100/trends', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+    await page.waitForTimeout(6000);
+    await page.screenshot({ path: `${out}/trends${suffix}.png`, fullPage: false });
+    log('trends mentions promise:', /charge-at-most-once|no-lost-sales/.test(await page.locator('body').innerText()));
+
+    log(`${theme} mode console errors:`, errors.length ? errors.slice(0, 10) : 'none');
+    await page.close();
   }
-
-  await page.goto('http://localhost:3100/trends', { waitUntil: 'domcontentloaded', timeout: 120_000 });
-  await page.waitForTimeout(6000);
-  await page.screenshot({ path: `${out}/trends.png`, fullPage: false });
-  log('trends mentions promise:', /charge-at-most-once|no-lost-sales/.test(await page.locator('body').innerText()));
-
-  log('console errors:', errors.length ? errors.slice(0, 10) : 'none');
+  
   await browser.close();
 } catch (e) {
   console.error('[shots] FAILED:', e.message);
