@@ -1,55 +1,41 @@
 import { PlanTier, TIERS } from '../billing/tiers';
 
+/** Where retained data lives. The API's session store implements this. */
+export interface RetentionStore {
+  /** Deletes every run (and its events) created before `cutoffMs` for the org. Returns counts. */
+  deleteOlderThan(orgId: string, cutoffMs: number): Promise<{ deletedRuns: number; deletedEvents: number }>;
+  /** Counts what deleteOlderThan would delete, without deleting it. */
+  countOlderThan(orgId: string, cutoffMs: number): Promise<{ deletedRuns: number; deletedEvents: number }>;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export class DataRetentionWorker {
-  
   /**
-   * Executes the daily retention sweep to purge old data based on plan tiers.
-   * @param orgId The organization ID
-   * @param tier The billing tier of the organization
-   * @param dryRun If true, only logs counts without deleting data
+   * Purges data older than the retention window. The counts returned are what the store actually
+   * deleted — this used to return Math.random() counts without deleting anything, which the
+   * compliance report then cited as evidence of purging.
+   *
+   * @param retentionDays Overrides the tier's window (self-hosted deployments set their own).
    */
-  public static async runSweep(orgId: string, tier: PlanTier, dryRun: boolean = false) {
-    const retentionDays = TIERS[tier].retentionDays;
-
-    if (retentionDays === Infinity) {
-      console.log(`[RetentionWorker] Org ${orgId} (Tier: ${tier}) has infinite retention. Skipping.`);
-      return { deletedEvents: 0, deletedRuns: 0 };
+  public static async runSweep(
+    store: RetentionStore,
+    orgId: string,
+    tier: PlanTier,
+    options: { dryRun?: boolean; retentionDays?: number; now?: number } = {}
+  ) {
+    const retentionDays = options.retentionDays ?? TIERS[tier].retentionDays;
+    if (!Number.isFinite(retentionDays)) {
+      return { deletedEvents: 0, deletedRuns: 0, cutoffMs: null as number | null };
+    }
+    if (retentionDays <= 0) {
+      throw new Error(`retentionDays must be positive, got ${retentionDays}`);
     }
 
-    console.log(`[RetentionWorker] Sweeping Org ${orgId} (Tier: ${tier}) for data older than ${retentionDays} days...`);
-
-    const sqlEvents = `
-      DELETE FROM captured_events 
-      WHERE org_id = $1 AND created_at < NOW() - INTERVAL '${retentionDays} days'
-      RETURNING id;
-    `;
-
-    const sqlRuns = `
-      DELETE FROM simulation_runs 
-      WHERE org_id = $1 AND created_at < NOW() - INTERVAL '${retentionDays} days'
-      RETURNING id;
-    `;
-
-    // MOCK EXECUTION: In v1 we mock the pg pool
-    const mockDeletedEventsCount = Math.floor(Math.random() * 500);
-    const mockDeletedRunsCount = Math.floor(Math.random() * 10);
-
-    if (dryRun) {
-      console.log(`[RetentionWorker] [DRY RUN] Would delete ${mockDeletedEventsCount} events and ${mockDeletedRunsCount} runs.`);
-      return { deletedEvents: mockDeletedEventsCount, deletedRuns: mockDeletedRunsCount };
-    }
-
-    // try {
-    //   const { rowCount: deletedEvents } = await pool.query(sqlEvents, [orgId]);
-    //   const { rowCount: deletedRuns } = await pool.query(sqlRuns, [orgId]);
-    //   console.log(`[RetentionWorker] Deleted ${deletedEvents} events and ${deletedRuns} runs.`);
-    //   return { deletedEvents, deletedRuns };
-    // } catch (err) {
-    //   console.error(`[RetentionWorker] Error executing sweep:`, err);
-    //   throw err;
-    // }
-
-    console.log(`[RetentionWorker] Deleted ${mockDeletedEventsCount} events and ${mockDeletedRunsCount} runs.`);
-    return { deletedEvents: mockDeletedEventsCount, deletedRuns: mockDeletedRunsCount };
+    const cutoffMs = (options.now ?? Date.now()) - retentionDays * DAY_MS;
+    const counts = options.dryRun
+      ? await store.countOlderThan(orgId, cutoffMs)
+      : await store.deleteOlderThan(orgId, cutoffMs);
+    return { ...counts, cutoffMs };
   }
 }
