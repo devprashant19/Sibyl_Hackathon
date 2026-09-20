@@ -1,5 +1,10 @@
 import { PlanTier } from "./tiers";
 
+/** "true", "1", "yes", "on" in any case. Exact-match "true" silently ignored SIBYL_…=1. */
+export function isTruthyEnv(value: string | undefined): boolean {
+  return !!value && /^(1|true|yes|on)$/i.test(value.trim());
+}
+
 // In a real app, this would be a Redis counter or DB table per org
 interface OrgUsage {
   runsExecuted: number;
@@ -10,7 +15,7 @@ const usageStore = new Map<string, OrgUsage>();
 
 export class UsageMeter {
   public static isSelfHosted(): boolean {
-    return process.env.SIBYL_ENTERPRISE_SELF_HOSTED === 'true';
+    return isTruthyEnv(process.env.SIBYL_ENTERPRISE_SELF_HOSTED);
   }
 
   public static getUsage(orgId: string): OrgUsage {
