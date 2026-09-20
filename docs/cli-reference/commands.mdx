@@ -1,31 +1,43 @@
 ---
 title: "CLI Reference"
-description: "The @sibyl/cli commands for local and CI workflows."
+description: "The sibyl commands for local and CI workflows."
 ---
 
+The CLI runs from the repository today (`pnpm sibyl <command>`); it is not yet published to npm. The full
+reference, with every option, is [`docs/cli.md`](https://github.com/devprashant19/Sibyl/blob/main/docs/cli.md).
+
 ## `sibyl run`
-Starts a local chaos engineering session.
+Runs a search session against `sibyl.config.ts` and saves it to `.sibyl/sessions/`.
 
 ```bash
-sibyl run <target-script> --promise <promise-id>
+sibyl run -c sibyl.config.ts -n 200 --seed 0xBEEF --strategy bayesian
 ```
-**Options:**
-- `--strategy`: The search algorithm (`random`, `ucb1`, `mcts`, `bayesian`). Default: `mcts`.
-- `--budget`: Maximum number of iterations before giving up. Default: `100`.
-- `--seed`: Fix the PRNG seed for deterministic debugging.
+
+- `-n, --iterations` — counted runs (duplicate schedules are skipped and don't count). Default `100`.
+- `--strategy` — `ucb1` (default), `mcts`, `bayesian`.
+- `-s, --seed` — the master seed. The same seed and config reproduce the session.
+- `--clock accelerated` — timers fire instantly.
+- `--junit <file>`, `--early-exit`, `--concurrency <n>`, `--timeout <ms>`.
+
+Uploads the session when `SIBYL_API_URL` is set.
 
 ## `sibyl ci`
-Executes in a CI/CD pipeline (e.g., GitHub Actions). Returns exit code `1` if a promise is broken, failing the build.
+`run` without interactive output. Exits `1` if any run failed, errored, or was intermittent
+(`--allow-intermittent` to permit flakes).
 
 ```bash
-sibyl ci --project-id prj_123
+sibyl ci -n 200 --junit reports/sibyl.xml
 ```
-*Note: Automatically exports results to the Sibyl Dashboard.*
 
 ## `sibyl replay <run-id>`
-Re-executes a failed run locally to attach a debugger.
+Re-executes one run with its original seed and fault schedule, and reports whether the outcome and every
+fault decision reproduced. A unique id prefix is enough. Looks locally first, then at `SIBYL_API_URL`.
 
 ```bash
-sibyl replay run_abc123
+sibyl replay 1c72f7b2 --events
 ```
-This fetches the exact `FaultSchedule` and PRNG seed from the cloud and runs your local application exactly as it failed in CI.
+
+## Also
+
+`sibyl init` · `sibyl sessions` · `sibyl doctor` · `sibyl explain <run-id>` · `sibyl investigate "<bug>"` ·
+`sibyl retro <postmortem.md>` — the last three need `ANTHROPIC_API_KEY`.

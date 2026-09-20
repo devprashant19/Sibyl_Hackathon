@@ -1,38 +1,36 @@
 ---
-title: "Benchmarks & Scalability"
-description: "Real-world load testing results for Sibyl's distributed queue architecture."
+title: "Benchmarks & Isolation"
+description: "What is measured, how, and what is not measured yet."
 ---
 
-When introducing chaos into your production environment, the reliability of the chaos engine itself is paramount. If a test runner leaks state between tests, or if one tenant starves another's CI pipeline, the engine becomes a liability rather than a safety net.
+This page previously reported results for 1,000 concurrent Docker-sandboxed runs, multi-tenant queue
+fairness and autoscaling. Those numbers did not come from any test in the repository — the sandbox
+entrypoint and the job producer they depend on do not exist — and have been removed. What follows is
+what is actually measured.
 
-We continuously run a rigorous distributed load-testing suite against the Sibyl platform (`packages/core/test/load-test.ts`) to assert three critical guarantees.
+## Run isolation within one process
 
-## 1. Absolute Isolation (0% Event Leakage)
-A common problem in naive chaos engines is asynchronous event leakage—a network fault injected in Sandbox A accidentally impacts Sandbox B because the global state wasn't perfectly isolated.
+Concurrent runs share a process, so isolation is a property of the engine, not of containers:
 
-**The Benchmark:**
-We simultaneously spawn **1,000 concurrent simulation runs**. Each run executes a synthetic target app that attempts to race network faults against the control plane aggregator.
+- **Fault decisions** resolve the active run's engine through `AsyncLocalStorage`; each run has its own
+  seeded streams.
+- **Time** is routed per run: under `--concurrency`, `Date.now()` and `setTimeout` inside run A use run A's
+  virtual clock, and outside any run they use real time.
 
-**The Result:**
-- **Leakage Rate:** 0.00%
-- **Guarantee:** Sibyl uses true Docker-in-Docker isolation and strict run-scoped HTTP headers for telemetry aggregation. A fault injected in run `A` mathematically cannot affect run `B`.
+`packages/core/test/regressions.test.ts` runs four timer-based workflows two at a time on accelerated
+clocks and asserts each observed exactly its own 60 s of virtual time, the session finished in under 2 s of
+wall time, and the process's native timers were restored afterwards.
 
-## 2. Multi-Tenant Queue Fairness
-If you have multiple development teams in your organization, Team A triggering a massive 10,000-run Monte Carlo simulation shouldn't stall Team B's simple 5-run CI check.
+Isolation does **not** extend to application state your workflow shares (module-level variables, a shared
+database). Key such state by `AsyncContext.getRunId()`.
 
-**The Benchmark:**
-We bombard the BullMQ task queue with 10,000 runs from `Tenant_A`. One second later, we submit 10 runs from `Tenant_B`.
+## Determinism
 
-**The Result:**
-- **Tenant_B Wait Time:** ~1.2 seconds.
-- **Guarantee:** Sibyl employs a strict **Round-Robin Fair Scheduler** at the tenant level. Instead of a strict FIFO queue that allows starvation, the worker fleet pulls evenly across all active tenants, ensuring your CI checks stay lightning-fast even during heavy organization load.
+`pnpm test:drivers` runs property tests that execute the same workload twice per driver under the same
+seed and assert identical captured events, with exact expected counts so an empty timeline cannot pass.
+`pnpm smoke` checks that the same seed finds the same number of failures in a fresh process.
 
-## 3. Elastic Autoscaling
-When a complex Bayesian optimization search kicks off, queue depth can spike rapidly.
+## Not yet measured
 
-**The Benchmark:**
-We artificially freeze the worker fleet, allowing queue depth to spike to 5,000 pending runs. We then unfreeze the fleet and monitor the Autoscale Controller's reaction time.
-
-**The Result:**
-- **Recovery SLA:** The queue completely drains within the expected metric ticks, scaling the virtual worker fleet aggressively by 20% increments until stability is reached.
-- **Guarantee:** You will never pay for idle chaos infrastructure. The `Sibyl-Worker` fleet scales directly on the `sibyl.queue.depth` OpenTelemetry metric, spinning down to exactly 0 when idle.
+Throughput (runs per second) and scaling with `--concurrency` depend heavily on the workflow and are not
+benchmarked. The distributed worker is scaffolding, so there are no queue or fleet measurements.
