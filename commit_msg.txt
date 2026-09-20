@@ -1,4 +1,0 @@
-feat(ui): implement ink-and-gold design system tokens and base components
-
-Additional updates:
-- feat(dashboard): integrate Sibyl design system and oracle console

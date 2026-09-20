@@ -133,7 +133,6 @@ export class VirtualClock {
   }
 
   public runAll() {
-    // Safety limit to prevent infinite loops from intervals
     let maxIterations = 10000; 
     
     while (this.queue.length > 0 && maxIterations > 0) {
@@ -161,9 +160,39 @@ export class VirtualClock {
     }
   }
 
+  public async runAllAsync() {
+    let maxIterations = 10000; 
+    
+    while (this.queue.length > 0 && maxIterations > 0) {
+      this.queue.sort((a, b) => a.triggerTime - b.triggerTime);
+      const earliest = this.queue.shift()!;
+      
+      this.now = earliest.triggerTime;
+      
+      try {
+        earliest.callback(...earliest.args);
+      } catch (e) {
+        console.error('Error in virtual timer callback:', e);
+      }
+
+      if (earliest.isInterval) {
+        earliest.triggerTime = this.now + earliest.delay;
+        this.queue.push(earliest);
+      }
+      
+      await new Promise(r => setImmediate(r));
+      maxIterations--;
+    }
+    
+    if (maxIterations === 0 && this.queue.length > 0) {
+      throw new Error('VirtualClock: runAllAsync() hit max iterations. Do you have an un-cleared setInterval?');
+    }
+  }
+
   private fakeSetTimeout = (callback: Function, delay: number = 0, ...args: any[]): any => {
     const id = this.nextTimerId++;
     
+    let nativeId: any;
     if (this.mode === 'accelerated') {
       this.queue.push({
         id,
@@ -173,10 +202,9 @@ export class VirtualClock {
         delay,
         args
       });
-      return id as any;
     } else {
       // Real-time passthrough
-      const nativeId = this.nativeSetTimeout(() => {
+      nativeId = this.nativeSetTimeout(() => {
         // Still remove from queue when it fires natively
         this.queue = this.queue.filter(t => t.id !== id);
         callback(...args);
@@ -191,11 +219,18 @@ export class VirtualClock {
         args,
         nativeId
       });
-      return id as any;
     }
+
+    return {
+      id,
+      unref: () => { if (nativeId?.unref) nativeId.unref(); return this; },
+      ref: () => { if (nativeId?.ref) nativeId.ref(); return this; },
+      [Symbol.toPrimitive]: () => id
+    } as any;
   };
 
-  private fakeClearTimeout = (id: any): void => {
+  private fakeClearTimeout = (timerInfo: any): void => {
+    const id = typeof timerInfo === 'object' ? timerInfo.id : timerInfo;
     const taskIndex = this.queue.findIndex(t => t.id === id);
     if (taskIndex !== -1) {
       const task = this.queue[taskIndex];
@@ -209,6 +244,7 @@ export class VirtualClock {
   private fakeSetInterval = (callback: Function, delay: number = 0, ...args: any[]): any => {
     const id = this.nextTimerId++;
     
+    let nativeId: any;
     if (this.mode === 'accelerated') {
       this.queue.push({
         id,
@@ -218,9 +254,8 @@ export class VirtualClock {
         delay,
         args
       });
-      return id as any;
     } else {
-      const nativeId = this.nativeSetInterval(callback as any, delay, ...args);
+      nativeId = this.nativeSetInterval(callback as any, delay, ...args);
       this.queue.push({
         id,
         callback,
@@ -230,8 +265,14 @@ export class VirtualClock {
         args,
         nativeId
       });
-      return id as any;
     }
+
+    return {
+      id,
+      unref: () => { if (nativeId?.unref) nativeId.unref(); return this; },
+      ref: () => { if (nativeId?.ref) nativeId.ref(); return this; },
+      [Symbol.toPrimitive]: () => id
+    } as any;
   };
 
   private fakeClearInterval = (id: any): void => {
