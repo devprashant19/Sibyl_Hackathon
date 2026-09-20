@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import type { MemorySessionStore } from './store';
+import type { SessionStore } from './store';
 import type { CreateSessionRequest } from '@sibyl/shared';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -138,15 +138,15 @@ export async function seedDemoData(store: MemorySessionStore): Promise<void> {
       makeRun('', '0x1124', 'COMPLETED', notifPromises),
       makeRun('', '0x1125', 'COMPLETED', notifPromises),
     ] },
-    { project: 'notifications', seed: '0x3344', strategy: 'random', iterations: 50, startedAt: daysAgo(12), completedAt: daysAgo(12) + 68000, source: 'cli', promises: notifPromises, summary: { totalRuns: 50, failures: 3, passes: 46, errored: 0, intermittent: 1 }, runs: [
-      makeRun('', '0x3344', 'FAILED', notifPromises, ['no-duplicate-push'], true),
-      makeRun('', '0x3345', 'FAILED', notifPromises, ['push-within-sla'], true),
-      makeRun('', '0x3346', 'COMPLETED', notifPromises),
-      makeRun('', '0x3347', 'COMPLETED', notifPromises),
+    { id: uuid(), project: 'notifications', startedAt: daysAgo(2), seed: 'notif-2', strategy: 'bayesian', runs: [
+      makeRun('', '0x5555', 'COMPLETED', notifPromises),
+      makeRun('', '0x5556', 'COMPLETED', notifPromises),
     ] },
-    { project: 'notifications', seed: '0x5566', strategy: 'random', iterations: 100, startedAt: daysAgo(3), completedAt: daysAgo(3) + 140000, source: 'ci', promises: notifPromises, summary: { totalRuns: 100, failures: 4, passes: 95, errored: 0, intermittent: 1 }, runs: [
+    { id: uuid(), project: 'notifications', startedAt: daysAgo(1), seed: 'notif-1', strategy: 'bayesian', runs: [
       makeRun('', '0x5566', 'FAILED', notifPromises, ['push-within-sla'], true),
-      makeRun('', '0x5567', 'FAILED', notifPromises, ['no-duplicate-push'], true),
+      makeRun('', '0x5567', 'COMPLETED', notifPromises),
+    ] },
+    { id: uuid(), project: 'notifications', startedAt: now - 2 * 60 * 60 * 1000, seed: 'notif-0', strategy: 'bayesian', runs: [
       makeRun('', '0x5568', 'INTERMITTENT', notifPromises, ['push-within-sla']),
       makeRun('', '0x5569', 'COMPLETED', notifPromises),
       makeRun('', '0x556A', 'COMPLETED', notifPromises),
@@ -166,7 +166,10 @@ export async function seedDemoData(store: MemorySessionStore): Promise<void> {
 
 /** Returns true if demo data should be seeded. */
 export function shouldSeedDemo(store: { counts(): { sessions: number; runs: number } }, kind: 'file' | 'memory'): boolean {
-  if (kind === 'file') return false; // Never overwrite persisted real data
   if (process.env.SIBYL_DEMO_MODE === 'false') return false;
+  if (process.env.RENDER || process.env.SIBYL_DEMO_MODE === 'true') {
+    return store.counts().sessions === 0;
+  }
+  if (kind === 'file') return false; // Never overwrite persisted real data
   return store.counts().sessions === 0;
 }

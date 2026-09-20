@@ -43,7 +43,8 @@ export async function startServer(config: ServerConfig = configFromEnv()) {
   const store: SessionStore = config.dataDir ? new FileSessionStore(config.dataDir) : new MemorySessionStore();
 
   // Seed demo data if the store is fresh (e.g. after a Render cold-start)
-  if (store instanceof MemorySessionStore && shouldSeedDemo(store, store.kind)) {
+  const isDemoEnv = shouldSeedDemo(store, store.kind);
+  if (isDemoEnv) {
     await seedDemoData(store);
     console.log('[api] Demo data seeded.');
   }
@@ -103,7 +104,7 @@ export async function startServer(config: ServerConfig = configFromEnv()) {
 
   // Live SSE demo: every 30s emit a synthetic in-progress → completed event pair
   // so the Live Sessions panel shows activity even with no real CLI runs.
-  if (store instanceof MemorySessionStore && store.counts().sessions > 0) {
+  if (store instanceof MemorySessionStore || isDemoEnv) {
     const runDemo = async () => {
       const demoSessionId = `demo-${crypto.randomUUID()}`;
       const projects = ['checkout', 'notifications'];
