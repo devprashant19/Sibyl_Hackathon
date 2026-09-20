@@ -1,0 +1,4 @@
+feat(sdk-go): refactor Go SDK implementation for sibyl_config
+
+Additional updates:
+- feat(sdk-go): refactor Go SDK implementation for go

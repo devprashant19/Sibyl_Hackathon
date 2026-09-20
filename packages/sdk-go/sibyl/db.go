@@ -1,13 +1,16 @@
 package sibyl
 
 import (
-	"context"
 	"database/sql/driver"
-	"time"
-	"fmt"
 )
 
-// Driver is a wrapper around a database/sql/driver.Driver
+// BeforeExec, when set, is called before every statement executed through a wrapped driver. It
+// may block (to inject latency) or return an error (to inject a failure), which is returned from
+// Exec instead of running the statement. It is nil by default: the wrapper injects nothing on its
+// own. There is no Go orchestrator yet; tests set this hook themselves.
+var BeforeExec func(query string, args []driver.Value) error
+
+// Driver is a wrapper around a database/sql/driver.Driver.
 // It allows us to intercept connections, queries, and executions.
 type Driver struct {
 	Base driver.Driver
@@ -34,26 +37,27 @@ func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Stmt{Base: stmt, Query: query}, nil
+	return &Stmt{Base: stmt, SQL: query}, nil
 }
 
 func (c *Conn) Close() error { return c.Base.Close() }
+
 func (c *Conn) Begin() (driver.Tx, error) { return c.Base.Begin() }
 
 type Stmt struct {
-	Base  driver.Stmt
-	Query string
+	Base driver.Stmt
+	// SQL is the statement text. (Named SQL, not Query: Stmt also has a Query method.)
+	SQL string
 }
 
-func (s *Stmt) Close() error { return s.Base.Close() }
+func (s *Stmt) Close() error  { return s.Base.Close() }
 func (s *Stmt) NumInput() int { return s.Base.NumInput() }
 
 func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
-	// For demonstration: Weak heuristic to simulate SLOW_IO on UPDATE
-	// In reality, we consult the Sibyl Orchestrator here
-	if len(s.Query) > 15 && s.Query[:15] == "UPDATE products" {
-		fmt.Println("[Sibyl] Injecting SLOW_IO fault on UPDATE...")
-		time.Sleep(150 * time.Millisecond) // Should use VirtualClock
+	if hook := BeforeExec; hook != nil {
+		if err := hook(s.SQL, args); err != nil {
+			return nil, err
+		}
 	}
 	return s.Base.Exec(args)
 }
