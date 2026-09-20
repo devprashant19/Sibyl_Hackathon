@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { SearchOrchestrator } from '../src/orchestrator';
-import { AsyncContext } from '../src/async-context';
-import { ProgrammaticPromise } from '../src/promise';
-import { FaultDriver, DriverContext } from '../src/driver';
-import { FaultScheduleTemplate } from '@sibyl/shared';
+import { AsyncContext, SearchOrchestrator, type DriverContext, type FaultDriver, type PromiseContext, type ProgrammaticPromise } from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
 // We'll simulate a race condition bug where reading and updating an inventory value
 // has a gap, and two concurrent requests can both successfully "checkout" the last item.
@@ -31,7 +28,7 @@ async function handleCheckout() {
   
   engine?.recordEvent({
     domain: 'DATABASE',
-    payload: { query: 'SELECT inventory', returned: currentInventory }
+    payload: { query: `SELECT inventory -- returned ${currentInventory}`, durationMs: (fault?.type === 'SLOW_QUERY' ? fault.delayMs : undefined) ?? 10 }
   });
 
   // 2. Check if we can checkout
@@ -42,12 +39,12 @@ async function handleCheckout() {
     
     engine?.recordEvent({
       domain: 'HTTP',
-      payload: { method: 'POST', url: '/checkout', status: 200 }
+      payload: { method: 'POST', url: '/checkout', statusCode: 200, durationMs: 0 }
     });
   } else {
     engine?.recordEvent({
       domain: 'HTTP',
-      payload: { method: 'POST', url: '/checkout', status: 400 }
+      payload: { method: 'POST', url: '/checkout', statusCode: 400, durationMs: 0 }
     });
   }
 }
@@ -55,13 +52,13 @@ async function handleCheckout() {
 // A mock driver that just registers itself but relies on our inline interception above
 class MockDbDriver implements FaultDriver {
   domain: 'DATABASE' = 'DATABASE';
-  install(ctx: DriverContext) {}
+  install(_ctx: DriverContext) {}
   uninstall() {}
 }
 
 class MockHttpDriver implements FaultDriver {
   domain: 'HTTP' = 'HTTP';
-  install(ctx: DriverContext) {}
+  install(_ctx: DriverContext) {}
   uninstall() {}
 }
 
@@ -75,8 +72,9 @@ describe('Search Orchestrator E2E Race Condition', () => {
       severity: 'CRITICAL',
       evaluate(ctx) {
         // Evaluate by analyzing HTTP events
-        const httpEvents = ctx.timeline(e => e.domain === 'HTTP');
-        const successes = httpEvents.filter(e => e.payload.status === 200).length;
+        const successes = (ctx as PromiseContext)
+          .timeline()
+          .filter(e => e.domain === 'HTTP' && e.payload.statusCode === 200).length;
         return successes <= 1;
       }
     };
