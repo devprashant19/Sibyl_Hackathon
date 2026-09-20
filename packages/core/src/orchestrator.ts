@@ -22,6 +22,7 @@ export interface SearchConfig {
   clockOptions?: { mode: 'realtime' | 'accelerated', skewMs?: number };
   strategy?: SearchStrategy;
   sandboxProvider?: SandboxProvider;
+  updateSnapshots?: boolean;
 }
 
 export interface SearchResult {
@@ -46,6 +47,7 @@ export interface SearchResult {
     status: SimulationRun['status'];
     error?: string;
   }[];
+  sessionPromiseResults?: PromiseResult[];
 }
 
 export class SearchOrchestrator {
@@ -225,12 +227,14 @@ export class SearchOrchestrator {
             engine.stop();
           });
 
-          const pCtx = createPromiseContext(runId, engine.getEvents());
+          const pCtx = createPromiseContext(runId, engine.getEvents(), this.config.updateSnapshots);
           const promiseResults: PromiseResult[] = [];
           let iterPassed = iterStatus === 'COMPLETED';
 
+          const runPromises = this.config.promises.filter(p => p.scope !== 'session');
+
           if (iterStatus === 'COMPLETED' || iterStatus === 'ERRORED') {
-            for (const p of this.config.promises) {
+            for (const p of runPromises) {
               const res = await executePromise(p, pCtx, Date.now());
               promiseResults.push(res);
               if (!res.passed) {
@@ -303,13 +307,25 @@ export class SearchOrchestrator {
 
     this.uninstallDrivers();
 
+    const sessionPromises = this.config.promises.filter(p => p.scope === 'session');
+    const sessionPromiseResults: PromiseResult[] = [];
+    
+    if (sessionPromises.length > 0) {
+      const sessionCtx = { runs: this.results, updateSnapshots: this.config.updateSnapshots };
+      for (const p of sessionPromises) {
+        const res = await executePromise(p, sessionCtx as any, Date.now());
+        sessionPromiseResults.push(res);
+      }
+    }
+
     return {
       totalRuns: this.iterationsDone,
-      failures: this.results.filter(r => r.status === 'FAILED').length,
+      failures: this.results.filter(r => r.status === 'FAILED').length + sessionPromiseResults.filter(r => !r.passed).length,
       passes: this.results.filter(r => r.passed).length,
       errored: this.results.filter(r => r.status === 'ERRORED').length,
       worstRun: this.worstRun,
-      results: this.results
+      results: this.results,
+      sessionPromiseResults
     };
   }
 

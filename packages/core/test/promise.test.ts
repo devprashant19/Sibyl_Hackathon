@@ -4,7 +4,8 @@ import {
   allOf, 
   anyOf, 
   createPromiseContext, 
-  executePromise 
+  executePromise,
+  snapshotPromise
 } from '../src/promise';
 import { CapturedEvent } from '@sibyl-shared';
 
@@ -74,5 +75,63 @@ describe('Promise Framework', () => {
     
     expect(res.passed).toBe(true);
     expect(res.message).toContain('anyOf passed because [p2] passed');
+  });
+
+  describe('Session Promises (Cross-run)', () => {
+    it('evaluates across multiple runs in SessionPromiseContext', async () => {
+      const sessionCtx = {
+        runs: [
+          { runId: 'r1', passed: true, promiseResults: [], concreteSchedules: [], seed: '1', status: 'COMPLETED' as const },
+          { runId: 'r2', passed: false, promiseResults: [], concreteSchedules: [], seed: '2', status: 'FAILED' as const }
+        ]
+      };
+
+      const p: ProgrammaticPromise = {
+        id: 'session-p1',
+        description: 'Ensure 50% pass rate',
+        severity: 'HIGH',
+        scope: 'session',
+        evaluate(ctx) {
+          if ('runId' in ctx) return false; // Fail if given run context
+          
+          const passedRuns = ctx.runs.filter(r => r.passed).length;
+          return passedRuns >= (ctx.runs.length / 2);
+        }
+      };
+
+      const res = await executePromise(p, sessionCtx, 200);
+      expect(res.passed).toBe(true);
+      expect(res.simulationRunId).toBe('SESSION');
+    });
+  });
+
+  describe('Snapshot Promises', () => {
+    const fs = require('fs');
+    const path = require('path');
+    
+    it('generates a snapshot and matches it', async () => {
+      const snapshotDir = path.join(process.cwd(), '__snapshots__');
+      const snapFile = path.join(snapshotDir, 'snap-test.snap.json');
+      
+      // Cleanup before
+      if (fs.existsSync(snapFile)) fs.unlinkSync(snapFile);
+
+      const p = snapshotPromise('snap-test', 'Test snap', (ctx) => ({ val: 42 }));
+      
+      const updateCtx = { runId: 'r1', events: [], timeline: () => [], updateSnapshots: true };
+      
+      // 1. Should create the snapshot
+      const res1 = await executePromise(p, updateCtx, 200);
+      expect(res1.passed).toBe(true);
+      expect(fs.existsSync(snapFile)).toBe(true);
+      
+      // 2. Should pass matching snapshot
+      const checkCtx = { runId: 'r2', events: [], timeline: () => [] };
+      const res2 = await executePromise(p, checkCtx, 200);
+      expect(res2.passed).toBe(true);
+      
+      // Cleanup after
+      if (fs.existsSync(snapFile)) fs.unlinkSync(snapFile);
+    });
   });
 });
