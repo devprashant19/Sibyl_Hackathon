@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BayesianSearchStrategy } from '../../src/search/bayesian';
-import { FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultScheduleTemplate } from '@sibyl/shared';
 import * as crypto from 'crypto';
 
 vi.mock('crypto', () => ({

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Ucb1SearchStrategy } from '../src/search/ucb1';
-import { FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultScheduleTemplate } from '@sibyl/shared';
 
 describe('UCB1 Search Strategy', () => {
   const templates: FaultScheduleTemplate[] = [
