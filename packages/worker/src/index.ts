@@ -1,123 +1,48 @@
-import { Worker, Job, Queue } from 'bullmq';
-import { connection, SimulationRunJob, DockerSandboxProvider, deadLetterQueue } from '@sibyl-core';
+import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
+import { getConnection, getDeadLetterQueue, DockerSandboxProvider, SimulationRunJob } from '@sibyl/core/queue';
+import { createRunHandler, createFailureHandler, JobLike } from './handler';
 
 console.log('[Worker] Starting Sibyl Simulation Worker Daemon...');
 
-const sandboxProvider = new DockerSandboxProvider();
-
-// The worker listens to the simulation-run-queue.
-// In BullMQ v5, workers can be configured to process groups in round-robin 
-// to ensure fair-share scheduling across orgs.
-const worker = new Worker<SimulationRunJob>(
-  'simulation-run-queue',
-  async (job: Job<SimulationRunJob>) => {
-    const { runId, orgId, schedules, seed } = job.data;
-    console.log(`[Worker] Processing Run ${runId} for Org ${orgId}`);
-
-    // Check Idempotency: use SETNX on Redis to ensure we don't process the same run twice
-    const idempotencyKey = `sibyl:run:${runId}:status`;
-    const setnxResult = await connection.setnx(idempotencyKey, 'PROCESSING');
-    if (setnxResult === 0) {
-      // Key already exists, check if it's COMPLETED
-      const currentStatus = await connection.get(idempotencyKey);
-      if (currentStatus === 'COMPLETED') {
-        console.log(`[Worker] Run ${runId} is already completed. Skipping.`);
-        await job.updateProgress(100);
-        return;
-      }
-      // If it's PROCESSING, another worker crashed mid-run and this is a retry. 
-      // We can proceed but we must assume the last run didn't finish.
-    }
-
-    // Create a Sandbox for isolation
-    const sandbox = await sandboxProvider.createSandbox({
-      imageId: 'sibyl-default-sandbox:latest',
-      maxMemoryMb: 512,
-      maxCpus: 1
-    });
-
-    const startTime = Date.now();
-
-    try {
-      // Execute the simulation within the sandbox
-      // In reality, this would mount the target script and run it, capturing results via volume or network
-      await sandbox.start(['node', 'dist/sandbox-worker.js']);
-      
-      // ... await sandbox execution completion ...
-      // ... write results to Postgres database ...
-
-      await connection.set(idempotencyKey, 'COMPLETED');
-      await job.updateProgress(100);
-      console.log(`[Worker] Run ${runId} completed successfully.`);
-    } catch (err) {
-      console.error(`[Worker] Run ${runId} failed:`, err);
-      // Remove PROCESSING status on failure so it can be retried safely
-      await connection.del(idempotencyKey);
-      throw err;
-    } finally {
-      await sandbox.stop();
-      await sandbox.cleanup();
-
-      const durationMs = Date.now() - startTime;
-      const sandboxMinutes = Math.ceil(durationMs / 60000);
-
-      // Publish usage metric for Phase 11 billing engine
-      await pub.publish('sibyl:usage', JSON.stringify({
-        orgId: orgId,
-        runId: runId,
-        sandboxMinutes: sandboxMinutes,
-        timestamp: new Date().toISOString()
-      }));
-      console.log(`[Worker] Metering: Billed ${sandboxMinutes} sandbox-minutes to org ${orgId}`);
-    }
-  },
-  {
-    connection,
-    concurrency: parseInt(process.env.WORKER_CONCURRENCY || '5', 10),
-    // group: {} - Native grouping configuration for fair-share scheduling
-  }
-);
-
-worker.on('ready', () => {
-  console.log('[Worker] Worker ready and listening for jobs!');
-});
-
-worker.on('error', (err) => {
-  console.error('[Worker] Unexpected Error:', err);
-});
-
-worker.on('failed', async (job: Job | undefined, err: Error) => {
-  if (job) {
-    console.error(`[Worker] Job ${job.id} failed with error: ${err.message}. Attempts made: ${job.attemptsMade}`);
-    // BullMQ attempts are 1-indexed. If attemptsMade >= opts.attempts, it permanently failed.
-    if (job.opts.attempts && job.attemptsMade >= job.opts.attempts) {
-      console.log(`[Worker] Job ${job.id} exhausted retries. Moving to DLQ.`);
-      await deadLetterQueue.add(`dlq-${job.id}`, job.data, {
-        jobId: `dlq-${job.id}` // Prevent duplicates in DLQ
-      });
-    }
-  }
-});
-
-// A Redis publisher for Webhook/WebSocket progress events
+const connection = getConnection();
+// Pub/sub gets its own connection; BullMQ's connection issues blocking commands.
 const pub = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
 
-worker.on('completed', async (job) => {
-  // Emit a global event so the API server can push SSE updates to clients
+const deps = {
+  redis: connection,
+  sandboxProvider: new DockerSandboxProvider(),
+  publish: (channel: string, message: string) => pub.publish(channel, message),
+  deadLetter: (job: JobLike) => getDeadLetterQueue().add(`dlq-${job.id}`, job.data, { jobId: `dlq-${job.id}` }),
+};
+const handleRun = createRunHandler(deps);
+const onFailed = createFailureHandler(deps);
+
+const worker = new Worker<SimulationRunJob>('simulation-run-queue', job => handleRun(job), {
+  connection,
+  concurrency: parseInt(process.env.WORKER_CONCURRENCY || '5', 10),
+});
+
+worker.on('ready', () => console.log('[Worker] Worker ready and listening for jobs!'));
+worker.on('error', err => console.error('[Worker] Unexpected Error:', err));
+worker.on('failed', (job: Job<SimulationRunJob> | undefined, err: Error) => {
+  onFailed(job, err).catch(e => console.error('[Worker] DLQ move failed:', e));
+});
+worker.on('completed', async job => {
+  // A global event so the API server can push SSE updates to clients
   await pub.publish('sibyl:progress', JSON.stringify({
     orgId: job.data.orgId,
     sessionId: job.data.sessionId,
     runId: job.data.runId,
-    status: 'COMPLETED'
+    status: 'COMPLETED',
   }));
 });
 
-// --- Graceful Shutdown ---
 async function shutdown(signal: string) {
   console.log(`\n[Worker] Received ${signal}. Starting graceful shutdown...`);
-  // Stop accepting new jobs and wait for active jobs to finish
-  await worker.close();
+  await worker.close(); // stop taking jobs, let active ones finish
+  await pub.quit().catch(() => {});
+  await connection.quit().catch(() => {});
   console.log('[Worker] Graceful shutdown complete. Exiting process.');
   process.exit(0);
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@sibyl-worker",
+  "name": "@sibyl/worker",
   "version": "0.0.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sibyl-core": "workspace:*",
+    "@sibyl/core": "workspace:*",
     "bullmq": "^6.3.2",
     "ioredis": "^6.0.0"
   },
