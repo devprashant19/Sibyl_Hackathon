@@ -45,13 +45,23 @@ export class HttpFaultDriver implements FaultDriver {
 
   private async applyFault(fault: FaultSpec, request: Request, controller: any) {
     const faultAny = fault as any; // Cast for flexibility with optional fields
-    const delay = faultAny.delayMs || 5000; // Default delays if not specified
+    const delay = faultAny.delayMs ?? 5000; // Default delay for SLOW_RESPONSE / TIMEOUT if not specified
+    // The schema names this `status`; `statusCode` is accepted for older configs.
+    const status = faultAny.status ?? faultAny.statusCode ?? (fault.type === 'HTTP_5XX' ? 500 : fault.type === 'HTTP_4XX' ? 400 : undefined);
 
-    // Log the event
+    // Record what the caller will actually observe. This used to log statusCode 0 and a 5000ms
+    // duration for every fault type, and never said which fault it was.
     if (this.context) {
+      const delayed = fault.type === 'SLOW_RESPONSE' || fault.type === 'TIMEOUT';
       this.context.recordEvent({
         domain: this.domain,
-        payload: { method: request.method, url: request.url, statusCode: faultAny.statusCode || 0, durationMs: delay }
+        fault: fault.type,
+        payload: {
+          method: request.method,
+          url: request.url,
+          statusCode: fault.type === 'HTTP_5XX' || fault.type === 'HTTP_4XX' ? status : fault.type === 'PARTIAL_RESPONSE' ? 200 : 0,
+          durationMs: delayed ? delay : 0,
+        },
       } as any);
     }
 
@@ -77,7 +87,6 @@ export class HttpFaultDriver implements FaultDriver {
     }
 
     if (fault.type === 'HTTP_5XX' || fault.type === 'HTTP_4XX') {
-      const status = faultAny.statusCode || (fault.type === 'HTTP_5XX' ? 500 : 400);
       controller.respondWith(new Response(null, { status }));
       return;
     }
