@@ -1,0 +1,4 @@
+chore(worker): refactor package dependencies
+
+Additional updates:
+- refactor(worker): improve index implementation
