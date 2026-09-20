@@ -1,16 +1,46 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { BudgetManager } from "./guardrails/BudgetManager";
-import { ClaudeUnavailableError } from "./errors";
+import { BaseAgentOptions, assertAIEnabled, callClaude, requireText } from "./common";
+import { resolveModel } from "./models";
 
-export interface PatcherOptions {
-  apiKey: string;
-  model?: string;
-  orgId?: string;
-}
+export type PatcherOptions = BaseAgentOptions;
 
 export interface PatchResult {
   unifiedDiff: string;
   explanation: string;
+  /** True when the diff was cut off (unterminated code fence or max_tokens reached). */
+  truncated: boolean;
+}
+
+const PATCHER_MAX_TOKENS = 8192;
+const NO_DIFF = "No diff generated.";
+const NO_EXPLANATION = "No explanation provided.";
+
+/**
+ * Extracts the first ```diff (or ```patch) fenced block and the explanation after it.
+ * Tolerates CRLF line endings and an unterminated fence (output truncated at max_tokens).
+ */
+export function parsePatchOutput(output: string, stoppedAtMaxTokens = false): PatchResult {
+  const text = output.replace(/\r\n?/g, "\n");
+  const open = /```(?:diff|patch)[^\S\n]*\n/.exec(text);
+  if (!open) {
+    return { unifiedDiff: NO_DIFF, explanation: NO_EXPLANATION, truncated: stoppedAtMaxTokens };
+  }
+
+  const bodyStart = open.index + open[0].length;
+  const closeIdx = text.indexOf("```", bodyStart);
+  if (closeIdx === -1) {
+    const diff = text.slice(bodyStart).trim();
+    return { unifiedDiff: diff || NO_DIFF, explanation: NO_EXPLANATION, truncated: true };
+  }
+
+  const diff = text.slice(bodyStart, closeIdx).trim();
+  const explanation = text.slice(closeIdx + 3).trim();
+  return {
+    unifiedDiff: diff || NO_DIFF,
+    explanation: explanation || NO_EXPLANATION,
+    truncated: stoppedAtMaxTokens
+  };
 }
 
 export class SibylPatcher {
@@ -20,13 +50,11 @@ export class SibylPatcher {
   private budget: BudgetManager;
 
   constructor(options: PatcherOptions) {
-    if (process.env.SIBYL_DISABLE_AI === 'true') {
-      throw new Error("AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true). To use AI features in an air-gapped environment, provide a local LLM endpoint.");
-    }
+    assertAIEnabled();
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
-    this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.model = resolveModel(options.model);
     this.orgId = options.orgId || "default-org";
-    this.budget = new BudgetManager();
+    this.budget = new BudgetManager(options.budgetFile);
   }
 
   /**
@@ -36,7 +64,7 @@ export class SibylPatcher {
     rootCauseNarrative: string,
     fileContents: Record<string, string>
   ): Promise<PatchResult> {
-    
+
     const prompt = `You are an expert software engineer fixing a bug discovered by a chaos engineering simulation.
 You have been provided with the root cause analysis of the failure, and the raw source code of the relevant files.
 
@@ -46,43 +74,18 @@ ${rootCauseNarrative}
 Source Files:
 ${Object.entries(fileContents).map(([path, content]) => `--- ${path} ---\n${content}\n`).join("\n")}
 
-Your task is to provide a fix for this bug. 
+Your task is to provide a fix for this bug.
 You must output a unified diff inside a markdown code block (e.g. \`\`\`diff ... \`\`\`).
 After the diff, provide a very brief, one-paragraph explanation of what structural changes you made.
 
 DO NOT output conversational filler before the diff.`;
 
-    this.budget.checkBudget(this.orgId);
+    const response = await callClaude(
+      { anthropic: this.anthropic, budget: this.budget, orgId: this.orgId, model: this.model },
+      { max_tokens: PATCHER_MAX_TOKENS, messages: [{ role: "user", content: prompt }] }
+    );
+    const output = requireText(response);
 
-    let output;
-    try {
-      const response = await this.anthropic.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }]
-      });
-
-      this.budget.recordSpend(
-        this.orgId, 
-        response.usage.input_tokens, 
-        response.usage.output_tokens
-      );
-
-      // @ts-ignore
-      output = response.content[0].text;
-    } catch (err: any) {
-      throw new ClaudeUnavailableError(err);
-    }
-    
-    const diffMatch = output.match(/```diff\n([\s\S]*?)```/);
-    const unifiedDiff = diffMatch ? diffMatch[1].trim() : "No diff generated.";
-    
-    // Extract explanation (everything after the diff)
-    const explanationStr = output.split("```diff")[1]?.split("```")[1]?.trim() || "No explanation provided.";
-
-    return {
-      unifiedDiff,
-      explanation: explanationStr
-    };
+    return parsePatchOutput(output, response.stop_reason === "max_tokens");
   }
 }
