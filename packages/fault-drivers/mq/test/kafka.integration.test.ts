@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { KafkaContainer, StartedKafkaContainer } from '@testcontainers/kafka';
 import { Kafka, Partitioners } from 'kafkajs';
 import { MqFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl-core';
+import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
 
 describe('Kafka MqFaultDriver Integration', () => {

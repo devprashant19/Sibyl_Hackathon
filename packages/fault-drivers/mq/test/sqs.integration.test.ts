@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { LocalstackContainer, StartedLocalstackContainer } from '@testcontainers/localstack';
 import { SQSClient, CreateQueueCommand, SendMessageCommand, ReceiveMessageCommand } from '@aws-sdk/client-sqs';
 import { MqFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl-core';
+import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
 
 describe('SQS MqFaultDriver Integration', () => {
