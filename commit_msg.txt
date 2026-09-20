@@ -1,0 +1,4 @@
+feat(fault-drivers): refactor resource driver implementation (cpu-pressure)
+
+Additional updates:
+- feat(fault-drivers): refactor resource driver implementation (index)

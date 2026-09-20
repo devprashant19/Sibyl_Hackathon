@@ -5,9 +5,12 @@ let activeBuffers: Buffer[] = [];
 let controlInterval: NodeJS.Timeout | null = null;
 let timeoutHandle: NodeJS.Timeout | null = null;
 let abortListener: (() => void) | null = null;
+let onStopped: (() => void) | null = null;
 
-export function startMemoryPressure(targetPercentage: number, durationMs: number) {
+/** `onStop` runs once when this pressure ends: by stopMemoryPressure(), its duration elapsing, or a watchdog abort. */
+export function startMemoryPressure(targetPercentage: number, durationMs: number, onStop?: () => void) {
   if (controlInterval) stopMemoryPressure();
+  onStopped = onStop ?? null;
 
   const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -55,4 +58,8 @@ export function stopMemoryPressure() {
     abortListener = null;
   }
   activeBuffers = [];
+
+  const callback = onStopped;
+  onStopped = null;
+  callback?.();
 }
