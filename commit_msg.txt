@@ -1,4 +1,0 @@
-feat(vscode): refactor VSCode extension codelens
-
-Additional updates:
-- feat(vscode): refactor VSCode extension diagnostics
