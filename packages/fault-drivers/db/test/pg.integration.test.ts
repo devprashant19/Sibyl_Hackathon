@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Pool } from 'pg';
 import { DatabaseFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
 
 describe('Postgres DatabaseFaultDriver Integration', () => {
