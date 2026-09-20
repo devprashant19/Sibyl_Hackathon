@@ -1,4 +1,4 @@
-import { FaultSchedule, FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultSchedule, FaultScheduleTemplate } from '@sibyl/shared';
 import { SearchStrategy, SearchRunRecord } from './strategy';
 import { PRNG } from '../prng';
 import * as crypto from 'crypto';
@@ -15,10 +15,11 @@ class MctsNode {
   visits = 0;
   failures = 0;
   children: Map<string, MctsNode> = new Map();
-  
+
   constructor(
     public parent: MctsNode | null,
     public choice: Bucket | null, // null for root
+    public depth: number,
     public unexpandedMoves: Bucket[]
   ) {}
 
@@ -31,14 +32,23 @@ class MctsNode {
   }
 }
 
+/**
+ * Monte Carlo Tree Search over fault schedules.
+ *
+ * The tree has one level per template, in template order: the root chooses a bucket for template 0,
+ * its children a bucket for template 1, and so on. A path from the root is a partial schedule; the
+ * rollout fills the remaining templates at random. Failures are the reward, so the search
+ * concentrates on the bucket combinations that break the workflow.
+ */
 export class MctsSearchStrategy implements SearchStrategy {
   private prng: PRNG;
   private root: MctsNode;
-  private allBuckets: Bucket[] = [];
-  
-  private lastLeaf: MctsNode | null = null;
-  private runIndex = 0;
+  private bucketsByTemplate: Map<string, Bucket[]> = new Map();
   private BUCKET_COUNT = 4;
+
+  // Which tree leaf produced each issued schedule set, keyed by every schedule id in the set.
+  // Keeping only the most recent leaf credited the wrong node whenever runs finished out of order.
+  private leafBySchedule: Map<string, MctsNode> = new Map();
 
   constructor(
     private templates: FaultScheduleTemplate[],
@@ -46,12 +56,13 @@ export class MctsSearchStrategy implements SearchStrategy {
   ) {
     this.prng = new PRNG(seed);
     this.initBuckets();
-    this.root = new MctsNode(null, null, [...this.allBuckets]);
+    this.root = new MctsNode(null, null, 0, this.movesAtDepth(0));
   }
 
   private initBuckets() {
     for (const t of this.templates) {
-      const probStep = t.probabilityRange 
+      const buckets: Bucket[] = [];
+      const probStep = t.probabilityRange
         ? (t.probabilityRange[1] - t.probabilityRange[0]) / this.BUCKET_COUNT
         : 0;
       const delayStep = t.delayMsRange
@@ -60,24 +71,24 @@ export class MctsSearchStrategy implements SearchStrategy {
 
       for (let p = 0; p < (t.probabilityRange ? this.BUCKET_COUNT : 1); p++) {
         for (let d = 0; d < (t.delayMsRange ? this.BUCKET_COUNT : 1); d++) {
-          const prob = t.probabilityRange 
+          const prob = t.probabilityRange
             ? t.probabilityRange[0] + (p * probStep) + (probStep / 2)
             : 1;
-            
+
           const delay = t.delayMsRange
             ? Math.floor(t.delayMsRange[0] + (d * delayStep) + (delayStep / 2))
             : undefined;
 
-          this.allBuckets.push({
-            templateId: t.id,
-            probBucket: p,
-            delayBucket: d,
-            prob,
-            delay
-          });
+          buckets.push({ templateId: t.id, probBucket: p, delayBucket: d, prob, delay });
         }
       }
+      this.bucketsByTemplate.set(t.id, buckets);
     }
+  }
+
+  private movesAtDepth(depth: number): Bucket[] {
+    const template = this.templates[depth];
+    return template ? [...this.bucketsByTemplate.get(template.id)!] : [];
   }
 
   private getBucketKey(b: Bucket): string {
@@ -87,7 +98,6 @@ export class MctsSearchStrategy implements SearchStrategy {
   private selectPromisingNode(): MctsNode {
     let node = this.root;
     while (node.unexpandedMoves.length === 0 && node.children.size > 0) {
-      // Pick best child based on UCT
       let bestScore = -Infinity;
       let bestChild: MctsNode | null = null;
       for (const child of node.children.values()) {
@@ -105,82 +115,79 @@ export class MctsSearchStrategy implements SearchStrategy {
   }
 
   private expand(node: MctsNode): MctsNode {
-    if (node.unexpandedMoves.length === 0) return node;
+    if (node.unexpandedMoves.length === 0) return node; // terminal: every template is chosen
 
-    // Pick a random unexpanded move
     const moveIdx = this.prng.nextInt(0, node.unexpandedMoves.length);
-    const move = node.unexpandedMoves[moveIdx];
-    
-    // Remove from unexpanded
-    node.unexpandedMoves.splice(moveIdx, 1);
-
-    // Calculate valid future moves (prevent picking conflicting buckets for the same template)
-    const nextUnexpanded = node.unexpandedMoves.filter(m => m.templateId !== move.templateId);
-
-    const child = new MctsNode(node, move, nextUnexpanded);
+    const [move] = node.unexpandedMoves.splice(moveIdx, 1);
+    const child = new MctsNode(node, move, node.depth + 1, this.movesAtDepth(node.depth + 1));
     node.children.set(this.getBucketKey(move), child);
-    
     return child;
   }
 
   next(iterationIndex: number): FaultSchedule[] {
-    this.runIndex++;
+    // 1. Selection, 2. Expansion
+    const leaf = this.expand(this.selectPromisingNode());
 
-    // 1. Selection
-    const promisingNode = this.selectPromisingNode();
-
-    // 2. Expansion
-    const leaf = this.expand(promisingNode);
-    this.lastLeaf = leaf;
-
-    // 3. Rollout
-    // Trace back path to get the locked choices
-    const lockedChoices: Bucket[] = [];
-    let curr: MctsNode | null = leaf;
-    const usedTemplates = new Set<string>();
-
-    while (curr && curr.choice) {
-      lockedChoices.push(curr.choice);
-      usedTemplates.add(curr.choice.templateId);
-      curr = curr.parent;
+    // 3. Rollout: the path fixes the first `leaf.depth` templates; the rest are sampled uniformly.
+    const chosen = new Map<string, Bucket>();
+    for (let curr: MctsNode | null = leaf; curr && curr.choice; curr = curr.parent) {
+      chosen.set(curr.choice.templateId, curr.choice);
     }
 
-    // Uniformly sample for the rest of the templates
-    for (const t of this.templates) {
-      if (usedTemplates.has(t.id)) continue;
-
-      // Filter all buckets for this template
-      const available = this.allBuckets.filter(b => b.templateId === t.id);
-      if (available.length > 0) {
-        const randomChoice = this.prng.pick(available);
-        lockedChoices.push(randomChoice);
-      }
-    }
-
-    // Convert buckets to schedules
-    return lockedChoices.map(b => {
-      const t = this.templates.find(temp => temp.id === b.templateId)!;
+    const schedules = this.templates.map(t => {
+      const bucket = chosen.get(t.id) ?? this.prng.pick(this.bucketsByTemplate.get(t.id)!);
       const spec = { ...t.spec };
-      if (b.delay !== undefined) spec.delayMs = b.delay;
-
+      if (bucket.delay !== undefined) spec.delayMs = bucket.delay;
       return {
         id: crypto.randomUUID(),
         spec,
-        probability: b.prob,
+        probability: bucket.prob,
         target: t.target
       } as FaultSchedule;
     });
+
+    for (const s of schedules) this.leafBySchedule.set(s.id, leaf);
+    return schedules;
   }
 
   feedback(runResult: SearchRunRecord): void {
     const reward = runResult.passed ? 0 : 1;
 
+    const first = runResult.concreteSchedules[0];
+    const leaf = first ? this.leafBySchedule.get(first.id) : undefined;
+    if (!leaf) return;
+    for (const s of runResult.concreteSchedules) this.leafBySchedule.delete(s.id);
+
     // 4. Backpropagation
-    let curr: MctsNode | null = this.lastLeaf;
-    while (curr) {
+    for (let curr: MctsNode | null = leaf; curr; curr = curr.parent) {
       curr.visits++;
       curr.failures += reward;
-      curr = curr.parent;
     }
+  }
+
+  exportState(): any {
+    const serialize = (node: MctsNode): any => ({
+      visits: node.visits,
+      failures: node.failures,
+      choice: node.choice,
+      unexpanded: node.unexpandedMoves,
+      children: Array.from(node.children.values()).map(serialize),
+    });
+    return { root: serialize(this.root), prng: this.prng.exportState() };
+  }
+
+  importState(state: any): void {
+    if (!state?.root) return;
+    const build = (data: any, parent: MctsNode | null, depth: number): MctsNode => {
+      const node = new MctsNode(parent, data.choice, depth, data.unexpanded ?? []);
+      node.visits = data.visits;
+      node.failures = data.failures;
+      for (const child of data.children ?? []) {
+        node.children.set(this.getBucketKey(child.choice), build(child, node, depth + 1));
+      }
+      return node;
+    };
+    this.root = build(state.root, null, 0);
+    if (state.prng) this.prng.importState(state.prng);
   }
 }

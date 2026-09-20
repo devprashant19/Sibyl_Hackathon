@@ -1,4 +1,4 @@
-import { FaultSchedule, FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultSchedule, FaultScheduleTemplate } from '@sibyl/shared';
 import { SearchStrategy, SearchRunRecord } from './strategy';
 import { PRNG } from '../prng';
 import * as crypto from 'crypto';
@@ -41,6 +41,11 @@ export class BayesianSearchStrategy implements SearchStrategy {
     passed: boolean;
     delay: number;
   }[] = [];
+
+  // Template of each issued schedule, by schedule id. Attaching it to the schedule as a hidden
+  // field did not survive the orchestrator's zod validation, so history was never recorded and
+  // TPE never left uniform sampling.
+  private scheduleTemplates: Map<string, string> = new Map();
 
   constructor(
     private templates: FaultScheduleTemplate[],
@@ -89,34 +94,43 @@ export class BayesianSearchStrategy implements SearchStrategy {
   next(iterationIndex: number): FaultSchedule[] {
     return this.templates.map(t => {
       const spec = { ...t.spec };
-      
+
       if (t.delayMsRange) {
         spec.delayMs = this.sampleTpe(t.id, t.delayMsRange[0], t.delayMsRange[1]);
       }
-      
-      const prob = t.probabilityRange 
+
+      const prob = t.probabilityRange
         ? this.prng.next() * (t.probabilityRange[1] - t.probabilityRange[0]) + t.probabilityRange[0]
         : 1;
 
+      const id = crypto.randomUUID();
+      this.scheduleTemplates.set(id, t.id);
       return {
-        id: crypto.randomUUID(),
+        id,
         spec,
         probability: prob,
         target: t.target,
-        _bayesianTemplateId: t.id
-      } as any; // Cast so we can attach hidden metadata
+      } as FaultSchedule;
     });
   }
 
   feedback(runResult: SearchRunRecord): void {
-    for (const schedule of runResult.concreteSchedules as any[]) {
-      if (schedule._bayesianTemplateId && schedule.spec.delayMs !== undefined) {
-        this.history.push({
-          templateId: schedule._bayesianTemplateId,
-          passed: runResult.passed,
-          delay: schedule.spec.delayMs
-        });
+    for (const schedule of runResult.concreteSchedules) {
+      const templateId = this.scheduleTemplates.get(schedule.id);
+      const delay = 'delayMs' in schedule.spec ? schedule.spec.delayMs : undefined;
+      if (templateId && delay !== undefined) {
+        this.history.push({ templateId, passed: runResult.passed, delay });
       }
     }
+  }
+
+  exportState(): any {
+    return { history: this.history, prng: this.prng.exportState() };
+  }
+
+  importState(state: any): void {
+    if (!state) return;
+    this.history = state.history ?? [];
+    if (state.prng) this.prng.importState(state.prng);
   }
 }
