@@ -8,8 +8,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sibyl-core": "workspace:*",
-    "@sibyl-shared": "workspace:*"
+    "@sibyl/core": "workspace:*",
+    "@sibyl/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
