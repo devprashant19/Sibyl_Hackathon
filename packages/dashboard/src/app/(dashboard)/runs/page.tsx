@@ -68,10 +68,31 @@ export default function RunExplorer() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel: Run List */}
         <div className="w-1/3 border-r border-ink-3 flex flex-col h-full bg-ink">
-        <div className="p-4 border-b border-ink-3">
-          <h2 className="font-display text-lg text-gold">Simulation Runs</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto">
+          
+          {/* AI Investigator */}
+          <div className="p-4 border-b border-ink-3 bg-ink-2/50">
+            <h2 className="font-display text-sm text-gold mb-2 flex items-center">
+              <span className="mr-2">🕵️</span> AI Investigator
+            </h2>
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder='e.g. "Customer got charged but order failed"'
+                className="w-full bg-ink border border-ink-3 rounded p-2 pr-10 text-xs text-parchment outline-none focus:border-gold placeholder:text-ink-3"
+              />
+              <button 
+                className="absolute right-1 top-1 bottom-1 px-2 bg-gold/10 hover:bg-gold/20 text-gold rounded text-xs transition-colors"
+                onClick={() => alert("Mock: Submitting to Sibyl AI Investigator")}
+              >
+                Go
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 border-b border-ink-3">
+            <h2 className="font-display text-lg text-gold">Simulation Runs</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto">
           {mockRuns.map((run) => (
             <div
               key={run.id}

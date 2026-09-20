@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sibyl-agent": "workspace:*",
     "@sibyl-core": "workspace:*",
     "@sibyl-shared": "workspace:*",
     "chalk": "^4.1.2",

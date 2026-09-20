@@ -5,6 +5,7 @@ import * as path from 'path';
 import cliProgress from 'cli-progress';
 // Need dynamic import for the user's config
 // import { SearchOrchestrator } from '@sibyl-core'; // Stub
+import { SibylInvestigator } from '@sibyl-agent';
 
 const program = new Command();
 
@@ -148,5 +149,61 @@ program
     
     console.log(chalk.magenta('\nReplay complete.'));
   });
+
+// --- INVESTIGATE COMMAND ---
+program
+  .command('investigate <bugDescription>')
+  .description('AI translates a plain-English bug report into a FaultSchedule and runs it')
+  .option('--project <projectId>', 'The ID of the project', 'default-project')
+  .action(async (bugDescription, options) => {
+    console.log(chalk.blue.bold(`\n🕵️  Sibyl AI Investigator Started`));
+    console.log(chalk.gray(`Analyzing bug: "${bugDescription}"\n`));
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.log(chalk.red('❌ Missing ANTHROPIC_API_KEY environment variable.'));
+      process.exit(1);
+    }
+
+    const agent = new SibylInvestigator({
+      apiKey,
+      fetchPromises: async () => [{ name: 'stripe_no_double_charge' }, { name: 'no_500s' }],
+      fetchRecentEvents: async () => [{ type: 'HTTP_REQUEST', target: 'api.stripe.com', domain: 'HTTP' }]
+    });
+
+    try {
+      const result = await agent.investigate(bugDescription, options.project);
+
+      if (result.status === 'NEEDS_CLARIFICATION') {
+        console.log(chalk.yellow.bold('⚠️  Agent needs clarification:'));
+        console.log(chalk.white(result.reasoning));
+        console.log(chalk.cyan(`\nQuestion: ${result.clarifyingQuestion}`));
+        return;
+      }
+
+      console.log(chalk.green.bold('✔ Investigation Complete'));
+      console.log(chalk.white(`\nReasoning:\n${result.reasoning}`));
+      
+      console.log(chalk.yellow('\nProposed Fault Schedule:'));
+      console.log(JSON.stringify(result.faultSchedule, null, 2));
+
+      if (result.draftNewPromiseCode) {
+        console.log(chalk.magenta('\nDrafted New Promise:'));
+        console.log(result.draftNewPromiseCode);
+        console.log(chalk.gray('\n(In a real implementation, this would be appended to sibyl.config.ts)'));
+      } else {
+        console.log(chalk.magenta(`\nUsing Existing Promise: ${result.existingPromiseName}`));
+      }
+
+      console.log(chalk.gray('\nAuto-triggering search run with proposed schedule...'));
+      // In reality we would call the search orchestrator here, e.g.:
+      // await orchestrator.run({ schedule: result.faultSchedule, promise: result.existingPromiseName });
+      console.log(chalk.green('✔ Mock search complete.'));
+
+    } catch (err: any) {
+      console.log(chalk.red(`❌ Agent error: ${err.message}`));
+    }
+  });
+
 
 program.parse(process.argv);

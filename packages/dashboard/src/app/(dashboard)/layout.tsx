@@ -16,9 +16,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/runs" className="block px-4 py-2 rounded-md hover:bg-ink-3 transition-colors text-sm">
             Run Explorer
           </Link>
+          <Link href="/analytics" className="block px-4 py-2 rounded-md hover:bg-ink-3 transition-colors text-sm">
+            Org Analytics
+          </Link>
           <Link href="/trends" className="block px-4 py-2 rounded-md hover:bg-ink-3 transition-colors text-sm">
             Promise Trends
           </Link>
+          <Link href="/marketplace" className="block px-4 py-2 rounded-md hover:bg-ink-3 transition-colors text-sm text-gold/80 hover:text-gold">
+            ✦ Promise Marketplace
+          </Link>
+          <div className="my-2 border-t border-ink-3" />
           <Link href="/settings" className="block px-4 py-2 rounded-md hover:bg-ink-3 transition-colors text-sm">
             Settings
           </Link>
