@@ -1,4 +1,0 @@
-refactor(sdk-node): improve index implementation
-
-Additional updates:
-- chore(sdk-node): refactor configuration for tsconfig

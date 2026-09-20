@@ -22,6 +22,38 @@
         "command": "sibyl.runLocal",
         "title": "Sibyl: Run Local Simulation"
       }
+    ],
+    "configuration": {
+      "title": "Sibyl",
+      "properties": {
+        "sibyl.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the sibyl CLI. Empty: use node_modules/.bin/sibyl found above the config, else `sibyl` on PATH."
+        },
+        "sibyl.defaultIterations": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "description": "Passed as -n to `sibyl run`. Empty: use the config's iterations."
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "sibyl",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "type": "string",
+            "description": "Path to sibyl.config.ts"
+          }
+        }
+      }
     ]
   },
   "scripts": {
