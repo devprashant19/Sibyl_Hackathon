@@ -1,0 +1,4 @@
+refactor(core): improve scim implementation
+
+Additional updates:
+- refactor(core): improve sso implementation

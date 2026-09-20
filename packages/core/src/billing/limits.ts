@@ -1,5 +1,3 @@
-import { searchQueue } from '../queue/setup';
-
 export class LimitExceededError extends Error {
   constructor(message: string) {
     super(message);
@@ -7,41 +5,44 @@ export class LimitExceededError extends Error {
   }
 }
 
+export interface OrgQueueLimits {
+  maxRunsPerSession: number;
+  /** Runs this org may have waiting or active at once, across all its sessions. */
+  maxQueuedRuns: number;
+}
+
 // In a real system, these limits would be fetched from Postgres based on the org's Stripe tier
-const ORG_LIMITS: Record<string, { maxRunsPerSession: number; maxConcurrentSandboxes: number }> = {
-  'org_free': { maxRunsPerSession: 100, maxConcurrentSandboxes: 5 },
-  'org_pro': { maxRunsPerSession: 10000, maxConcurrentSandboxes: 100 },
-  'org_enterprise': { maxRunsPerSession: 500000, maxConcurrentSandboxes: 500 },
+const ORG_LIMITS: Record<string, OrgQueueLimits> = {
+  'org_free': { maxRunsPerSession: 100, maxQueuedRuns: 200 },
+  'org_pro': { maxRunsPerSession: 10000, maxQueuedRuns: 20000 },
+  'org_enterprise': { maxRunsPerSession: 500000, maxQueuedRuns: 1000000 },
 };
 
 /**
- * Validates a search session request against the organization's billing tier limits
- * before admitting the job into the queue.
+ * Validates a search session request against the organization's limits before admitting it.
+ *
+ * `countQueuedRuns` reports the org's current backlog (waiting + active). It is injected rather than
+ * read from a module-level BullMQ queue, which opened a Redis connection as soon as anything
+ * imported @sibyl/core. The backlog check previously compared against a hard-coded 0, so it could
+ * never reject anything.
  */
-export async function enforceQueueAdmission(orgId: string, requestedRuns: number): Promise<void> {
+export async function enforceQueueAdmission(
+  orgId: string,
+  requestedRuns: number,
+  countQueuedRuns: (orgId: string) => Promise<number>
+): Promise<void> {
   const limits = ORG_LIMITS[orgId] || ORG_LIMITS['org_free'];
 
-  // 1. Enforce Max Runs Per Session
   if (requestedRuns > limits.maxRunsPerSession) {
     throw new LimitExceededError(
       `Your current billing tier allows a maximum of ${limits.maxRunsPerSession} runs per search session. You requested ${requestedRuns}. Please upgrade your plan.`
     );
   }
 
-  // 2. Enforce Max Concurrent Sandboxes (Queue Depth check)
-  // Prevent admission if their currently queued jobs exceed a high threshold, 
-  // preventing them from spamming the redis queue even if BullMQ Grouping prevents starvation of others.
-  
-  // We query BullMQ for the number of jobs waiting/active for this specific group (orgId)
-  // Note: BullMQ v5 getMetrics() or counting by group might require custom lua or iterating,
-  // but logically this acts as the admission barrier.
-  const activeJobs = await searchQueue.getJobCounts('wait', 'active');
-  
-  // (Stubbed logic for checking org's current total backlog)
-  const currentOrgBacklog = 0; 
-  if (currentOrgBacklog + requestedRuns > limits.maxRunsPerSession * 2) {
-      throw new LimitExceededError(
-          `You currently have too many pending jobs in the queue. Please wait for your previous search sessions to finish.`
-      );
+  const backlog = await countQueuedRuns(orgId);
+  if (backlog + requestedRuns > limits.maxQueuedRuns) {
+    throw new LimitExceededError(
+      `You have ${backlog} runs pending; admitting ${requestedRuns} more would exceed your limit of ${limits.maxQueuedRuns}. Please wait for your previous search sessions to finish.`
+    );
   }
 }
