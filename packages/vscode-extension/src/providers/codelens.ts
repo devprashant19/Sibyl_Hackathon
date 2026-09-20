@@ -6,37 +6,25 @@ export class SibylCodeLensProvider implements vscode.CodeLensProvider {
 
   public provideCodeLenses(
     document: vscode.TextDocument,
-    token: vscode.CancellationToken
-  ): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
-    
+    _token: vscode.CancellationToken
+  ): vscode.CodeLens[] {
     const codeLenses: vscode.CodeLens[] = [];
     const text = document.getText();
-    
-    // Simple regex to find promise definitions (e.g., export const promises: ProgrammaticPromise[] =)
-    const regex = /promises:\s*ProgrammaticPromise\[\]\s*=/g;
-    let match;
+
+    // A Sibyl config is `export default defineConfig({ ... })` (see `sibyl init`).
+    const regex = /\bdefineConfig\s*\(/g;
+    let match: RegExpExecArray | null;
 
     while ((match = regex.exec(text)) !== null) {
       const line = document.positionAt(match.index).line;
       const range = new vscode.Range(line, 0, line, 0);
 
-      // Mock fetching pass rate from Sibyl API
-      const mockPassRate = 87.5;
-
-      const lens = new vscode.CodeLens(range, {
-        title: `Sibyl: ${mockPassRate}% Pass Rate (Last 30 Days) ⚠️`,
-        command: "sibyl.runLocal",
-        arguments: [document.uri]
-      });
-
-      codeLenses.push(lens);
-      
-      const lens2 = new vscode.CodeLens(range, {
-        title: `▶️ Run Chaos Local`,
-        command: "sibyl.runLocal",
-        arguments: [document.uri]
-      });
-      codeLenses.push(lens2);
+      // No pass-rate lens: the extension does not query the API, so it has no real number to show.
+      codeLenses.push(new vscode.CodeLens(range, {
+        title: 'Run Sibyl',
+        command: 'sibyl.runLocal',
+        arguments: [document.uri],
+      }));
     }
 
     return codeLenses;

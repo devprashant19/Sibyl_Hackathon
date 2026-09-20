@@ -25,7 +25,7 @@ function updateDiagnostics(document: vscode.TextDocument, collection: vscode.Dia
   if (text.includes('processPayment')) {
     
     // Find the line containing 'processPayment'
-    const lines = text.split('\\n');
+    const lines = text.split(/\r?\n/);
     let targetLine = 0;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].includes('processPayment')) {
