@@ -1,8 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { BudgetManager } from "./guardrails/BudgetManager";
+import { ClaudeUnavailableError } from "./errors";
 
 export interface PatcherOptions {
   apiKey: string;
   model?: string;
+  orgId?: string;
 }
 
 export interface PatchResult {
@@ -13,6 +16,8 @@ export interface PatchResult {
 export class SibylPatcher {
   private anthropic: Anthropic;
   private model: string;
+  private orgId: string;
+  private budget: BudgetManager;
 
   constructor(options: PatcherOptions) {
     if (process.env.SIBYL_DISABLE_AI === 'true') {
@@ -20,6 +25,8 @@ export class SibylPatcher {
     }
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
     this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.orgId = options.orgId || "default-org";
+    this.budget = new BudgetManager();
   }
 
   /**
@@ -45,14 +52,27 @@ After the diff, provide a very brief, one-paragraph explanation of what structur
 
 DO NOT output conversational filler before the diff.`;
 
-    const response = await this.anthropic.messages.create({
-      model: this.model,
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }]
-    });
+    this.budget.checkBudget(this.orgId);
 
-    // @ts-ignore
-    const output = response.content[0].text;
+    let output;
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.model,
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      this.budget.recordSpend(
+        this.orgId, 
+        response.usage.input_tokens, 
+        response.usage.output_tokens
+      );
+
+      // @ts-ignore
+      output = response.content[0].text;
+    } catch (err: any) {
+      throw new ClaudeUnavailableError(err);
+    }
     
     const diffMatch = output.match(/```diff\n([\s\S]*?)```/);
     const unifiedDiff = diffMatch ? diffMatch[1].trim() : "No diff generated.";

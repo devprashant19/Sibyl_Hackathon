@@ -1,8 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { CacheManager } from "./guardrails/CacheManager";
+import { BudgetManager } from "./guardrails/BudgetManager";
+import { ClaudeUnavailableError } from "./errors";
 
 export interface ExplainerOptions {
   apiKey: string;
   model?: string;
+  orgId?: string;
 }
 
 export interface GroundingResult {
@@ -14,6 +18,9 @@ export interface GroundingResult {
 export class SibylExplainer {
   private anthropic: Anthropic;
   private model: string;
+  private orgId: string;
+  private cache: CacheManager;
+  private budget: BudgetManager;
 
   constructor(options: ExplainerOptions) {
     if (process.env.SIBYL_DISABLE_AI === 'true') {
@@ -21,6 +28,9 @@ export class SibylExplainer {
     }
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
     this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.orgId = options.orgId || "default-org";
+    this.cache = new CacheManager();
+    this.budget = new BudgetManager();
   }
 
   /**
@@ -32,12 +42,20 @@ export class SibylExplainer {
     promiseEvidence: any
   ): Promise<string> {
     
+    // Check Cache first
+    const cacheKey = this.cache.generateKey('explainFailure', capturedEvents, promiseEvidence);
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     // Phase 1: Draft the narrative
     const draftNarrative = await this.draftNarrative(capturedEvents, promiseEvidence);
 
     // Phase 2: Grounding validation
     const groundingResult = await this.validateGrounding(draftNarrative, capturedEvents);
 
+    this.cache.set(cacheKey, JSON.stringify(groundingResult.validatedNarrative));
     return groundingResult.validatedNarrative;
   }
 
@@ -53,14 +71,26 @@ Failing Promise Evidence:
 ${JSON.stringify(evidence, null, 2)}
 `;
 
-    const response = await this.anthropic.messages.create({
-      model: this.model,
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
-    });
+    this.budget.checkBudget(this.orgId);
 
-    // @ts-ignore
-    return response.content[0].text;
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.model,
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      this.budget.recordSpend(
+        this.orgId, 
+        response.usage.input_tokens, 
+        response.usage.output_tokens
+      );
+
+      // @ts-ignore
+      return response.content[0].text;
+    } catch (err: any) {
+      throw new ClaudeUnavailableError(err);
+    }
   }
 
   private async validateGrounding(narrative: string, events: any[]): Promise<GroundingResult> {
@@ -77,21 +107,34 @@ ${JSON.stringify(events, null, 2)}
 
 Output ONLY the validated narrative. Do not output any conversational text.`;
 
-    const response = await this.anthropic.messages.create({
-      model: this.model,
-      max_tokens: 1000,
-      messages: [{ role: "user", content: validationPrompt }]
-    });
+    this.budget.checkBudget(this.orgId);
 
-    // @ts-ignore
-    const validatedText = response.content[0].text;
-    
-    const hallucinationsRemoved = validatedText.trim() !== narrative.trim();
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.model,
+        max_tokens: 1000,
+        messages: [{ role: "user", content: validationPrompt }]
+      });
 
-    return {
-      isGrounded: true,
-      validatedNarrative: validatedText,
-      hallucinationsRemoved
-    };
+      this.budget.recordSpend(
+        this.orgId, 
+        response.usage.input_tokens, 
+        response.usage.output_tokens
+      );
+
+      // @ts-ignore
+      const validatedText = response.content[0].text;
+      
+      const hallucinationsRemoved = validatedText.trim() !== narrative.trim();
+
+      return {
+        isGrounded: true,
+        validatedNarrative: validatedText,
+        hallucinationsRemoved
+      };
+    } catch (err: any) {
+      throw new ClaudeUnavailableError(err);
+    }
   }
+
 }

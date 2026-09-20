@@ -10,7 +10,8 @@ vi.mock('@anthropic-ai/sdk', () => {
           return {
             content: [{ 
               text: "```diff\n--- src/payment/handler.ts\n+++ src/payment/handler.ts\n@@ -10,3 +10,3 @@\n-  await processPayment();\n+  await processPayment({ idempotencyKey });\n```\n\nI added the idempotencyKey to the processPayment call to prevent double charges on retries." 
-            }]
+            }],
+            usage: { input_tokens: 10, output_tokens: 10 }
           };
         })
       };

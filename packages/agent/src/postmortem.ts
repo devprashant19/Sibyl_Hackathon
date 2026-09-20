@@ -1,8 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { BudgetManager } from "./guardrails/BudgetManager";
+import { ClaudeUnavailableError } from "./errors";
 
 export interface AnalyzerOptions {
   apiKey: string;
   model?: string;
+  orgId?: string;
 }
 
 export interface PostmortemAnalysisResult {
@@ -14,6 +17,8 @@ export interface PostmortemAnalysisResult {
 export class SibylPostmortemAnalyzer {
   private anthropic: Anthropic;
   private model: string;
+  private orgId: string;
+  private budget: BudgetManager;
 
   constructor(options: AnalyzerOptions) {
     if (process.env.SIBYL_DISABLE_AI === 'true') {
@@ -21,6 +26,8 @@ export class SibylPostmortemAnalyzer {
     }
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
     this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.orgId = options.orgId || "default-org";
+    this.budget = new BudgetManager();
   }
 
   /**
@@ -58,14 +65,27 @@ export const templates: FaultScheduleTemplate[] = [
 ];
 \`\`\``;
 
-    const response = await this.anthropic.messages.create({
-      model: this.model,
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }]
-    });
+    this.budget.checkBudget(this.orgId);
 
-    // @ts-ignore
-    const output = response.content[0].text;
+    let output;
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.model,
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      this.budget.recordSpend(
+        this.orgId, 
+        response.usage.input_tokens, 
+        response.usage.output_tokens
+      );
+
+      // @ts-ignore
+      output = response.content[0].text;
+    } catch (err: any) {
+      throw new ClaudeUnavailableError(err);
+    }
 
     // Parse the output using regex
     const explanationMatch = output.match(/### Explanation\n([\s\S]*?)\n### Promise/);

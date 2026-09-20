@@ -23,7 +23,8 @@ export const templates: FaultScheduleTemplate[] = [
   { id: 'db-timeout', spec: { domain: 'DB', type: 'TIMEOUT' } }
 ];
 \`\`\`` 
-            }]
+            }],
+            usage: { input_tokens: 10, output_tokens: 10 }
           };
         })
       };

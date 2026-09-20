@@ -1,12 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getPromisesTool, getRecentEventsTool, submitInvestigationTool } from "./tools";
+import { CacheManager } from "./guardrails/CacheManager";
+import { BudgetManager } from "./guardrails/BudgetManager";
+import { ClaudeUnavailableError } from "./errors";
+
 export * from "./explainer";
 export * from "./patcher";
 export * from "./postmortem";
+export * from "./errors";
 
 export interface InvestigatorOptions {
   apiKey: string;
   model?: string;
+  orgId?: string;
   // Hooks for the tools to fetch real data
   fetchPromises: (projectId: string) => Promise<any>;
   fetchRecentEvents: (projectId: string, limit: number) => Promise<any>;
@@ -24,6 +30,9 @@ export interface InvestigationResult {
 export class SibylInvestigator {
   private anthropic: Anthropic;
   private model: string;
+  private orgId: string;
+  private cache: CacheManager;
+  private budget: BudgetManager;
   private fetchPromises: (projectId: string) => Promise<any>;
   private fetchRecentEvents: (projectId: string, limit: number) => Promise<any>;
 
@@ -33,11 +42,20 @@ export class SibylInvestigator {
     }
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
     this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.orgId = options.orgId || "default-org";
+    this.cache = new CacheManager();
+    this.budget = new BudgetManager();
     this.fetchPromises = options.fetchPromises;
     this.fetchRecentEvents = options.fetchRecentEvents;
   }
 
   public async investigate(bugReport: string, projectId: string): Promise<InvestigationResult> {
+    const cacheKey = this.cache.generateKey('investigate', bugReport, projectId);
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     let messages: Anthropic.MessageParam[] = [
       {
         role: "user",
@@ -46,13 +64,25 @@ export class SibylInvestigator {
     ];
 
     while (true) {
-      const response = await this.anthropic.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages,
-        tools: [getPromisesTool, getRecentEventsTool, submitInvestigationTool],
-        tool_choice: { type: "auto" }
-      });
+      this.budget.checkBudget(this.orgId);
+      let response;
+      try {
+        response = await this.anthropic.messages.create({
+          model: this.model,
+          max_tokens: 2000,
+          messages,
+          tools: [getPromisesTool, getRecentEventsTool, submitInvestigationTool],
+          tool_choice: { type: "auto" }
+        });
+        
+        this.budget.recordSpend(
+          this.orgId, 
+          response.usage.input_tokens, 
+          response.usage.output_tokens
+        );
+      } catch (err: any) {
+        throw new ClaudeUnavailableError(err);
+      }
 
       messages.push({ role: "assistant", content: response.content });
 
@@ -78,20 +108,24 @@ export class SibylInvestigator {
           });
         } else if (toolCall.name === "submit_investigation") {
           const output = toolCall.input as any;
+          let result: InvestigationResult;
           if (output.clarifyingQuestion) {
-            return {
+            result = {
               status: 'NEEDS_CLARIFICATION',
               reasoning: output.reasoning,
               clarifyingQuestion: output.clarifyingQuestion
             };
+          } else {
+            result = {
+              status: 'SUCCESS',
+              reasoning: output.reasoning,
+              faultSchedule: output.faultSchedule,
+              existingPromiseName: output.existingPromiseName,
+              draftNewPromiseCode: output.draftNewPromiseCode
+            };
           }
-          return {
-            status: 'SUCCESS',
-            reasoning: output.reasoning,
-            faultSchedule: output.faultSchedule,
-            existingPromiseName: output.existingPromiseName,
-            draftNewPromiseCode: output.draftNewPromiseCode
-          };
+          this.cache.set(cacheKey, JSON.stringify(result));
+          return result;
         }
       }
     }

@@ -1,9 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { Card, ProgressTrack } from "@sibyl/ui";
+import { ErrorBoundary } from "@sibyl/ui";
+import { PromiseTrends } from "./components/PromiseTrends";
+
+const mockTrends = [
+  { id: "1", name: "No HTTP 500s", description: "System should not return 500 errors", passRate: 94.2, totalRuns: 1402 },
+  { id: "2", name: "Idempotent Orders", description: "Duplicate requests should not create duplicate DB rows", passRate: 42.1, totalRuns: 890 },
+  { id: "3", name: "Graceful DB Failover", description: "Read operations should fallback to replica", passRate: 100, totalRuns: 500 },
+  { id: "4", name: "Message Queue Timeout", description: "Consumer should retry dead-letter messages", passRate: 78.5, totalRuns: 1200 },
+];
 
 export default function Trends() {
+  const [isLoading, setIsLoading] = React.useState(false);
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <header>
@@ -11,55 +21,12 @@ export default function Trends() {
         <p className="text-muted font-body">Aggregated pass rates across all simulation runs over the last 30 days.</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h3 className="font-display text-lg text-parchment mb-1">No HTTP 500s</h3>
-          <p className="text-sm text-muted mb-6">System should not return 500 errors</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-mono">
-              <span className="text-gold">94.2% Pass Rate</span>
-              <span className="text-muted">1,402 Runs</span>
-            </div>
-            <ProgressTrack value={94.2} indicatorColor="gold" />
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="font-display text-lg text-parchment mb-1">Idempotent Orders</h3>
-          <p className="text-sm text-muted mb-6">Duplicate requests should not create duplicate DB rows</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-mono">
-              <span className="text-ember">42.1% Pass Rate</span>
-              <span className="text-muted">890 Runs</span>
-            </div>
-            <ProgressTrack value={42.1} indicatorColor="ember" />
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="font-display text-lg text-parchment mb-1">Graceful DB Failover</h3>
-          <p className="text-sm text-muted mb-6">Read operations should fallback to replica</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-mono">
-              <span className="text-gold">100% Pass Rate</span>
-              <span className="text-muted">500 Runs</span>
-            </div>
-            <ProgressTrack value={100} indicatorColor="gold" />
-          </div>
-        </Card>
-        
-        <Card className="p-6">
-          <h3 className="font-display text-lg text-parchment mb-1">Message Queue Timeout</h3>
-          <p className="text-sm text-muted mb-6">Consumer should retry dead-letter messages</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-mono">
-              <span className="text-violet">78.5% Pass Rate</span>
-              <span className="text-muted">1,200 Runs</span>
-            </div>
-            <ProgressTrack value={78.5} indicatorColor="violet" />
-          </div>
-        </Card>
-      </div>
+      <ErrorBoundary>
+        <PromiseTrends 
+          trends={mockTrends}
+          isLoading={isLoading} 
+        />
+      </ErrorBoundary>
     </div>
   );
 }

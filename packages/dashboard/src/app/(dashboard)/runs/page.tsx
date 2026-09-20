@@ -1,20 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Badge, Card, CodeBlock, ProgressTrack } from "@sibyl/ui";
+import { ProgressTrack, ErrorBoundary } from "@sibyl/ui";
 import { mockRuns, mockEvents } from "../../../lib/mockData";
 import { useLiveProgress } from "../../../hooks/useLiveProgress";
+import { RunList } from "./components/RunList";
+import { RunDetail } from "./components/RunDetail";
 
 export default function RunExplorer() {
-  const [selectedRunId, setSelectedRunId] = React.useState<string>(mockRuns[0].id);
-  const [isExplaining, setIsExplaining] = React.useState<boolean>(false);
+  const [selectedRunId, setSelectedRunId] = React.useState<string | null>(mockRuns.length > 0 ? mockRuns[0].id : null);
+  // Optional: Add state to simulate loading/errors if needed, but for now we'll just pass the mock data
+  const [isLoading, setIsLoading] = React.useState(false);
 
   // Hardcode session ID and fake API URL for this UI-only phase
   const sessionId = "session-12345";
   const { progress, isConnected, injectMockEvent, setTotalRuns } = useLiveProgress(sessionId, "http://localhost:4000/api/v1");
 
-  const selectedRun = mockRuns.find((r) => r.id === selectedRunId);
-  const events = mockEvents[selectedRunId] || [];
+  const selectedRun = mockRuns.find((r) => r.id === selectedRunId) || null;
+  const events = selectedRunId ? (mockEvents[selectedRunId] || []) : [];
 
   // Mock Simulator
   const simulateLiveSession = () => {
@@ -69,7 +72,6 @@ export default function RunExplorer() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel: Run List */}
         <div className="w-1/3 border-r border-ink-3 flex flex-col h-full bg-ink">
-          
           {/* AI Investigator */}
           <div className="p-4 border-b border-ink-3 bg-ink-2/50">
             <h2 className="font-display text-sm text-gold mb-2 flex items-center">
@@ -93,225 +95,28 @@ export default function RunExplorer() {
           <div className="p-4 border-b border-ink-3">
             <h2 className="font-display text-lg text-gold">Simulation Runs</h2>
           </div>
-          <div className="flex-1 overflow-y-auto">
-          {mockRuns.map((run) => (
-            <div
-              key={run.id}
-              onClick={() => setSelectedRunId(run.id)}
-              className={`p-4 border-b border-ink-3 cursor-pointer transition-colors ${
-                selectedRunId === run.id ? "bg-ink-3/50" : "hover:bg-ink-2"
-              }`}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="font-mono text-sm text-parchment font-semibold">{run.id}</span>
-                <Badge variant={run.status === "COMPLETED" ? "pass" : "fail"}>
-                  {run.status}
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center text-xs text-muted">
-                <span>{new Date(run.timestamp).toLocaleTimeString()}</span>
-                <span>{run.durationMs}ms</span>
-              </div>
-            </div>
-          ))}
+          
+          <ErrorBoundary>
+            <RunList 
+              runs={mockRuns} 
+              selectedRunId={selectedRunId} 
+              onSelectRun={setSelectedRunId} 
+              isLoading={isLoading} 
+            />
+          </ErrorBoundary>
+        </div>
+
+        {/* Right Panel: Run Detail */}
+        <div className="w-2/3 h-full overflow-y-auto bg-ink-2 p-8">
+          <ErrorBoundary>
+            <RunDetail 
+              run={selectedRun} 
+              events={events} 
+              isLoading={isLoading} 
+            />
+          </ErrorBoundary>
         </div>
       </div>
-
-      {/* Right Panel: Run Detail */}
-      <div className="w-2/3 h-full overflow-y-auto bg-ink-2 p-8">
-        {selectedRun ? (
-          <div className="max-w-3xl mx-auto space-y-8">
-            <header className="flex flex-col space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="font-display text-2xl text-gold mb-2">Run {selectedRun.id}</h2>
-                  <div className="flex space-x-4 text-sm text-muted font-mono">
-                    <span>{new Date(selectedRun.timestamp).toLocaleString()}</span>
-                    <span>Environment: {selectedRun.environment}</span>
-                  </div>
-                </div>
-                <Badge variant={selectedRun.status === "COMPLETED" ? "pass" : "fail"} className="text-sm px-3 py-1">
-                  {selectedRun.status}
-                </Badge>
-              </div>
-
-              {selectedRun.status === "FAILED" && (
-                <div className="flex flex-wrap items-center gap-4 p-4 rounded-md border border-ink-3 bg-ink">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted">Assignee:</span>
-                    <select 
-                      className="bg-ink-2 border border-ink-3 rounded text-sm px-2 py-1 text-parchment outline-none"
-                      defaultValue={selectedRun.assignee || "unassigned"}
-                    >
-                      <option value="unassigned">Unassigned</option>
-                      <option value="Alice Engineer">Alice Engineer</option>
-                      <option value="Bob Developer">Bob Developer</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted">Status:</span>
-                    <select 
-                      className="bg-ink-2 border border-ink-3 rounded text-sm px-2 py-1 outline-none"
-                      defaultValue={selectedRun.triageStatus || "OPEN"}
-                    >
-                      <option value="OPEN" className="text-ember">OPEN</option>
-                      <option value="INVESTIGATING" className="text-gold">INVESTIGATING</option>
-                      <option value="RESOLVED" className="text-parchment">RESOLVED</option>
-                      <option value="WONT_FIX" className="text-muted">WONT_FIX</option>
-                    </select>
-                  </div>
-                  <div className="ml-auto">
-                    {selectedRun.externalIssueUrl ? (
-                      <a href={selectedRun.externalIssueUrl} target="_blank" rel="noreferrer" className="flex items-center space-x-2 px-3 py-1.5 bg-ink-2 border border-ink-3 hover:border-gold/50 rounded-md text-sm transition-colors text-parchment">
-                        <span className="w-4 h-4 rounded-sm bg-violet flex items-center justify-center text-[10px] font-bold">L</span>
-                        <span>SIB-102</span>
-                      </a>
-                    ) : (
-                      <button className="flex items-center space-x-2 px-3 py-1.5 bg-violet/10 text-violet border border-violet/30 hover:bg-violet/20 rounded-md text-sm transition-colors font-semibold">
-                        <span className="w-4 h-4 rounded-sm bg-violet text-ink flex items-center justify-center text-[10px] font-bold">L</span>
-                        <span>Create Linear Issue</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </header>
-
-            <Card className="p-6 bg-ink">
-              <h3 className="font-display text-lg text-gold mb-6">Event Timeline</h3>
-              <div className="relative border-l border-ink-3 ml-3 space-y-8">
-                {events.map((event, idx) => (
-                  <div key={event.id} className="relative pl-8">
-                    {/* Timeline Node */}
-                    <div className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-ink bg-ink ${event.isFault ? 'bg-ember border-ember ring-4 ring-ember/20' : 'bg-gold border-gold'}`} />
-                    
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center space-x-3">
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {event.domain}
-                        </Badge>
-                        <span className={`font-mono text-sm font-semibold ${event.isFault ? 'text-ember' : 'text-parchment'}`}>
-                          {event.type}
-                        </span>
-                        <span className="text-xs text-muted font-mono ml-auto">
-                          +{idx > 0 ? (new Date(event.timestamp).getTime() - new Date(events[0].timestamp).getTime()) : 0}ms
-                        </span>
-                      </div>
-                      
-                      {event.payload && (
-                        <div className="mt-2">
-                          <CodeBlock 
-                            code={JSON.stringify(event.payload, null, 2)} 
-                            language="json"
-                            className="bg-ink-3/30 border-ink-3" 
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                
-                {events.length === 0 && (
-                  <p className="pl-8 text-sm text-muted">No telemetry captured for this run.</p>
-                )}
-              </div>
-            </Card>
-
-            {/* Root Cause & Discussion */}
-            {selectedRun.status === "FAILED" && (
-              <div className="space-y-6">
-                {selectedRun.rootCauseExplanation ? (
-                  <Card className="p-6 bg-ember/5 border-ember/20">
-                    <h3 className="font-display text-lg text-ember mb-2 flex items-center">
-                      <span className="mr-2">⚡</span> AI Root Cause Analysis
-                    </h3>
-                    <p className="text-sm text-parchment leading-relaxed font-body">
-                      {selectedRun.rootCauseExplanation}
-                    </p>
-                  </Card>
-                ) : (
-                  <Card className="p-6 bg-ink flex flex-col items-center justify-center text-center space-y-4">
-                    <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-gold text-2xl">
-                      🤖
-                    </div>
-                    <div>
-                      <h3 className="font-display text-lg text-parchment mb-1">Diagnose this Failure</h3>
-                      <p className="text-sm text-muted">Use the Sibyl Explainer Agent to analyze the event timeline and determine the root cause.</p>
-                    </div>
-                    <button 
-                      className={`px-4 py-2 bg-gold/10 text-gold border border-gold/30 rounded-md font-semibold text-sm transition-colors hover:bg-gold/20 flex items-center space-x-2 ${isExplaining ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      disabled={isExplaining}
-                      onClick={() => {
-                        setIsExplaining(true);
-                        setTimeout(() => {
-                          alert("Mock: Call to SibylExplainer finished. The UI would update with the validated narrative.");
-                          setIsExplaining(false);
-                        }, 2000);
-                      }}
-                    >
-                      {isExplaining ? (
-                        <>
-                          <span className="animate-spin mr-2">⚙️</span>
-                          <span>Analyzing telemetry...</span>
-                        </>
-                      ) : (
-                        <span>✨ Explain this failure</span>
-                      )}
-                    </button>
-                  </Card>
-                )}
-
-                <Card className="p-6 bg-ink flex flex-col">
-                  <h3 className="font-display text-lg text-gold mb-4">Discussion</h3>
-                  
-                  <div className="space-y-4 mb-6">
-                    {selectedRun.comments?.map((comment) => (
-                      <div key={comment.id} className="flex space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-ink-3 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-semibold text-gold">
-                            {comment.author.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex-1 bg-ink-2 border border-ink-3 rounded-lg p-3">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-semibold text-parchment">{comment.author}</span>
-                            <span className="text-xs text-muted font-mono">{new Date(comment.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                          <p className="text-sm text-muted">
-                            {comment.content.split(/(@\w+)/g).map((part, i) => 
-                              part.startsWith('@') ? <span key={i} className="text-gold font-semibold">{part}</span> : part
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                    {(!selectedRun.comments || selectedRun.comments.length === 0) && (
-                      <p className="text-sm text-muted italic">No comments yet.</p>
-                    )}
-                  </div>
-
-                  <div className="mt-auto">
-                    <div className="relative">
-                      <textarea 
-                        className="w-full bg-ink-2 border border-ink-3 rounded-lg p-3 text-sm text-parchment outline-none focus:border-gold min-h-[80px] resize-none placeholder:text-ink-3"
-                        placeholder="Add a comment... Use @ to mention"
-                      />
-                      <button className="absolute bottom-3 right-3 px-3 py-1 bg-gold/10 text-gold border border-gold/20 hover:bg-gold/20 rounded font-semibold text-sm transition-colors">
-                        Comment
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center text-muted">
-            Select a run to view details.
-          </div>
-        )}
-      </div>
-    </div>
     </div>
   );
 }
