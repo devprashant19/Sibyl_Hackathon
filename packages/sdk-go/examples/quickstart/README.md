@@ -16,7 +16,7 @@ db, _ = sql.Open("sibyl-postgres", "user=postgres password=password dbname=quick
 For HTTP, you would wrap `http.DefaultTransport` using `sibyl.NewTransport(http.DefaultTransport)`.
 
 ## 3. The Promise
-In `sibyl_config.go`, we use the idiomatic Go `sibyl.Promise` struct to declare our invariant without heavy boilerplate interfaces:
+In `sibyl_config.go` (same `main` package), we use the idiomatic Go `sibyl.Promise` struct to declare our invariant without heavy boilerplate interfaces:
 ```go
 var NoNegativeInventory = sibyl.Promise{
 	ID:          "no-negative-inventory",
@@ -27,10 +27,14 @@ var NoNegativeInventory = sibyl.Promise{
 }
 ```
 
-## 4. Running the Simulation
+## 4. Running
+
+There is no Go orchestrator yet, so the `sibyl` CLI cannot run this example and `NoNegativeInventory`
+is not evaluated by anything. You can run the server with the fault hook enabled by hand:
+
 ```bash
-go mod tidy
-# (Assuming Sibyl Orchestrator invokes Go)
-sibyl run --target sibyl_config.go --local-only
+go run .                      # needs a local Postgres with a products table
+SIBYL_SLOW_IO=1 go run .      # delays every `UPDATE products` by 150ms via sibyl.BeforeExec
 ```
-Sibyl injects a `SLOW_IO` delay between the `SELECT` and `UPDATE`, predictably failing the test by causing negative inventory!
+
+Concurrent checkouts against the slowed server then overwrite each other's inventory updates.

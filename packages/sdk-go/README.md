@@ -1,93 +1,23 @@
-# sibyl-sdk (Go)
+# sibyl (Go) — experimental
 
-The official Go SDK for the Sibyl chaos engineering platform.
+Early building blocks for a Go SDK. **There is no Go orchestrator yet**: nothing here runs a
+search, evaluates promises, or talks to the Sibyl API, and the `sibyl` CLI cannot run Go code.
 
-## Installation
+What exists (`github.com/devprashant19/Sibyl/packages/sdk-go/sibyl`, no third-party dependencies):
+
+- `sibyl.WrapDriver(driver.Driver)` — wraps a `database/sql` driver. `sibyl.BeforeExec`, when set,
+  runs before every statement execution and can delay it or return an error (fault injection hook).
+- `sibyl.NewTransport(http.RoundTripper)` — pass-through `http.RoundTripper` wrapper (no faults yet).
+- `sibyl.Clock`, `sibyl.Now()`, `sibyl.Sleep(ctx, d)` — an injectable clock (`sibyl.ActiveClock`).
+- `sibyl.Promise`, `sibyl.Event`, `sibyl.PromiseContext` — types describing promises over captured events.
 
 ```bash
-go get github.com/devprashant19/sibyl-go
+go vet ./... && go build ./...
 ```
 
-## Quickstart
+`examples/quickstart` is a separate module (it depends on `github.com/lib/pq` and uses a `replace`
+directive to point at this directory):
 
-```go
-package main
-
-import (
-    "testing"
-    sibyl "github.com/devprashant19/sibyl-go/sibyl"
-)
-
-func TestNoDoubleCharges(t *testing.T) {
-    promise := sibyl.DefinePromise(sibyl.PromiseConfig{
-        ID:       "no-double-charges",
-        Name:     "No Double Charges",
-        Severity: sibyl.Critical,
-        Evaluate: func(ctx *sibyl.PromiseContext) sibyl.PromiseResult {
-            charges := ctx.Timeline(func(e sibyl.CapturedEvent) bool {
-                return e.Domain == "HTTP" && e.Metadata["path"] == "/v1/charges"
-            })
-
-            seen := make(map[string]bool)
-            for _, c := range charges {
-                key := c.Metadata["idempotencyKey"]
-                if seen[key] {
-                    return sibyl.Fail("Duplicate charge detected for key: " + key)
-                }
-                seen[key] = true
-            }
-            return sibyl.Pass()
-        },
-    })
-
-    result := sibyl.Run(sibyl.RunConfig{
-        Workflow:   func() { processPayment("order-123", 49.99) },
-        Promises:   []sibyl.Promise{promise},
-        Iterations: 100,
-        Seed:       "0xBEEF",
-        Strategy:   sibyl.MCTS,
-    })
-
-    if result.Failures > 0 {
-        t.Fatalf("Found %d failures in %d runs", result.Failures, result.TotalRuns)
-    }
-}
-```
-
-## `testing.T` Integration
-
-The Go SDK integrates directly with Go's built-in testing package:
-
-```go
-func TestWithSibyl(t *testing.T) {
-    sibyl.RunTest(t, sibyl.TestConfig{
-        Iterations: 200,
-        Seed:       "0xDEAD",
-        Promises:   []sibyl.Promise{noDoubleCharges, noOrphanedRecords},
-        Workflow:   myAppWorkflow,
-    })
-}
-```
-
-Run with:
 ```bash
-go test -v -run TestWithSibyl
+cd examples/quickstart && go vet ./... && go build ./...
 ```
-
-## API
-
-### `sibyl.DefinePromise(config)`
-
-Creates a promise definition.
-
-### `sibyl.Run(config)`
-
-Runs the simulation orchestrator and returns results.
-
-### `sibyl.Install()`
-
-Auto-wires fault drivers for `net/http`, `database/sql`, and Sarama (Kafka).
-
-## Examples
-
-See `examples/quickstart/` for a complete working example with `net/http` and `database/sql`.
