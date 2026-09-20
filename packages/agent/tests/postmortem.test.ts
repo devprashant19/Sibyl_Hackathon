@@ -8,7 +8,7 @@ vi.mock('@anthropic-ai/sdk', () => {
       messages = {
         create: vi.fn().mockImplementation(async (args: any) => {
           return {
-            content: [{ 
+            content: [{ type: "text",
               text: `### Explanation
 This prevents the database timeout from taking down the API.
 ### Promise
