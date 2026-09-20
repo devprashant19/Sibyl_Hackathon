@@ -10,10 +10,11 @@
   },
   "dependencies": {
     "@mswjs/interceptors": "^0.42.3",
-    "@sibyl-core": "workspace:*",
-    "@sibyl-shared": "workspace:*"
+    "@sibyl/core": "workspace:*",
+    "@sibyl/shared": "workspace:*"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.9.1"
+    "@opentelemetry/api": "^1.9.1",
+    "@types/node": "^20.0.0"
   }
 }
