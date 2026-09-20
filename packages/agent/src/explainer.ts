@@ -1,19 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { CacheManager } from "./guardrails/CacheManager";
 import { BudgetManager } from "./guardrails/BudgetManager";
-import { ClaudeUnavailableError } from "./errors";
+import { BaseAgentOptions, assertAIEnabled, callClaude, requireText } from "./common";
+import { resolveModel } from "./models";
+import { findUngroundedReferences } from "./grounding";
 
-export interface ExplainerOptions {
-  apiKey: string;
-  model?: string;
-  orgId?: string;
-}
+export type ExplainerOptions = BaseAgentOptions;
 
 export interface GroundingResult {
+  /** True when the local check found no cited identifiers missing from the events/evidence. */
   isGrounded: boolean;
   validatedNarrative: string;
+  /** True when the validation pass rewrote the draft narrative. */
   hallucinationsRemoved: boolean;
+  /** Hostnames, fault/event types or event ids cited in the narrative but absent from the events/evidence. */
+  ungroundedReferences: string[];
 }
+
+const EXPLAINER_MAX_TOKENS = 4096;
 
 export class SibylExplainer {
   private anthropic: Anthropic;
@@ -23,40 +27,52 @@ export class SibylExplainer {
   private budget: BudgetManager;
 
   constructor(options: ExplainerOptions) {
-    if (process.env.SIBYL_DISABLE_AI === 'true') {
-      throw new Error("AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true). To use AI features in an air-gapped environment, provide a local LLM endpoint.");
-    }
+    assertAIEnabled();
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
-    this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.model = resolveModel(options.model);
     this.orgId = options.orgId || "default-org";
-    this.cache = new CacheManager();
-    this.budget = new BudgetManager();
+    this.cache = new CacheManager(options.cacheDir);
+    this.budget = new BudgetManager(options.budgetFile);
   }
 
   /**
    * Generates a grounded root cause explanation for a failed simulation run.
    */
   public async explainFailure(
-    runId: string, 
-    capturedEvents: any[], 
+    runId: string,
+    capturedEvents: any[],
     promiseEvidence: any
   ): Promise<string> {
-    
-    // Check Cache first
-    const cacheKey = this.cache.generateKey('explainFailure', capturedEvents, promiseEvidence);
-    const cached = this.cache.get(cacheKey);
+    const result = await this.explainFailureDetailed(runId, capturedEvents, promiseEvidence);
+    return result.validatedNarrative;
+  }
+
+  /**
+   * Same as explainFailure, but also returns the grounding assessment.
+   */
+  public async explainFailureDetailed(
+    runId: string,
+    capturedEvents: any[],
+    promiseEvidence: any
+  ): Promise<GroundingResult> {
+    const cacheKey = this.cache.generateKey(
+      { agent: 'explainer.explainFailure', model: this.model, orgId: this.orgId },
+      capturedEvents,
+      promiseEvidence
+    );
+    const cached = parseCachedGrounding(this.cache.get(cacheKey));
     if (cached) {
-      return JSON.parse(cached);
+      return cached;
     }
 
     // Phase 1: Draft the narrative
     const draftNarrative = await this.draftNarrative(capturedEvents, promiseEvidence);
 
     // Phase 2: Grounding validation
-    const groundingResult = await this.validateGrounding(draftNarrative, capturedEvents);
+    const groundingResult = await this.validateGrounding(draftNarrative, capturedEvents, promiseEvidence);
 
-    this.cache.set(cacheKey, JSON.stringify(groundingResult.validatedNarrative));
-    return groundingResult.validatedNarrative;
+    this.cache.set(cacheKey, JSON.stringify(groundingResult));
+    return groundingResult;
   }
 
   private async draftNarrative(events: any[], evidence: any): Promise<string> {
@@ -71,29 +87,14 @@ Failing Promise Evidence:
 ${JSON.stringify(evidence, null, 2)}
 `;
 
-    this.budget.checkBudget(this.orgId);
-
-    try {
-      const response = await this.anthropic.messages.create({
-        model: this.model,
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }]
-      });
-
-      this.budget.recordSpend(
-        this.orgId, 
-        response.usage.input_tokens, 
-        response.usage.output_tokens
-      );
-
-      // @ts-ignore
-      return response.content[0].text;
-    } catch (err: any) {
-      throw new ClaudeUnavailableError(err);
-    }
+    const response = await callClaude(
+      { anthropic: this.anthropic, budget: this.budget, orgId: this.orgId, model: this.model },
+      { max_tokens: EXPLAINER_MAX_TOKENS, messages: [{ role: "user", content: prompt }] }
+    );
+    return requireText(response);
   }
 
-  private async validateGrounding(narrative: string, events: any[]): Promise<GroundingResult> {
+  private async validateGrounding(narrative: string, events: any[], evidence: any): Promise<GroundingResult> {
     const validationPrompt = `You are a strict grounding validator.
 Review the following explanation narrative against the provided raw telemetry events.
 If any claim in the narrative CANNOT be traced to a specific event in the telemetry, you must rewrite the narrative to remove the hallucinated claim.
@@ -107,34 +108,38 @@ ${JSON.stringify(events, null, 2)}
 
 Output ONLY the validated narrative. Do not output any conversational text.`;
 
-    this.budget.checkBudget(this.orgId);
+    const response = await callClaude(
+      { anthropic: this.anthropic, budget: this.budget, orgId: this.orgId, model: this.model },
+      { max_tokens: EXPLAINER_MAX_TOKENS, messages: [{ role: "user", content: validationPrompt }] }
+    );
+    const validatedText = requireText(response);
 
-    try {
-      const response = await this.anthropic.messages.create({
-        model: this.model,
-        max_tokens: 1000,
-        messages: [{ role: "user", content: validationPrompt }]
-      });
+    const ungroundedReferences = findUngroundedReferences(validatedText, events, evidence);
 
-      this.budget.recordSpend(
-        this.orgId, 
-        response.usage.input_tokens, 
-        response.usage.output_tokens
-      );
-
-      // @ts-ignore
-      const validatedText = response.content[0].text;
-      
-      const hallucinationsRemoved = validatedText.trim() !== narrative.trim();
-
-      return {
-        isGrounded: true,
-        validatedNarrative: validatedText,
-        hallucinationsRemoved
-      };
-    } catch (err: any) {
-      throw new ClaudeUnavailableError(err);
-    }
+    return {
+      isGrounded: ungroundedReferences.length === 0,
+      validatedNarrative: validatedText,
+      hallucinationsRemoved: validatedText.trim() !== narrative.trim(),
+      ungroundedReferences
+    };
   }
 
+}
+
+function parseCachedGrounding(raw: string | null): GroundingResult | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    if (
+      value && typeof value.validatedNarrative === 'string' &&
+      typeof value.isGrounded === 'boolean' &&
+      typeof value.hallucinationsRemoved === 'boolean' &&
+      Array.isArray(value.ungroundedReferences)
+    ) {
+      return value as GroundingResult;
+    }
+  } catch {
+    // malformed cached value: treat as a miss
+  }
+  return null;
 }
