@@ -22,6 +22,8 @@ const worker = new Worker<SimulationRunJob>(
       maxCpus: 1
     });
 
+    const startTime = Date.now();
+
     try {
       // Execute the simulation within the sandbox
       // In reality, this would mount the target script and run it, capturing results via volume or network
@@ -38,6 +40,18 @@ const worker = new Worker<SimulationRunJob>(
     } finally {
       await sandbox.stop();
       await sandbox.cleanup();
+
+      const durationMs = Date.now() - startTime;
+      const sandboxMinutes = Math.ceil(durationMs / 60000);
+
+      // Publish usage metric for Phase 11 billing engine
+      await pub.publish('sibyl:usage', JSON.stringify({
+        orgId: orgId,
+        runId: runId,
+        sandboxMinutes: sandboxMinutes,
+        timestamp: new Date().toISOString()
+      }));
+      console.log(`[Worker] Metering: Billed ${sandboxMinutes} sandbox-minutes to org ${orgId}`);
     }
   },
   {
