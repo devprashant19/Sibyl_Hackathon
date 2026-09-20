@@ -1,34 +1,49 @@
-import { definePromise } from "@sibyl/sdk";
+import { AsyncContext, type ProgrammaticPromise } from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
-// Mock Database
+// Mock database
 let db = { counter: 0 };
 
 /**
- * THE BUG: A classic Read-Modify-Write lost update.
- * If two requests hit this simultaneously, they might both read 
- * `db.counter = 0`, and both write `db.counter = 1`.
+ * THE BUG: a read-modify-write without a lock. Normally the read and the write happen back to back.
+ * When the read is slow (an injected DATABASE/SLOW_QUERY), another request can read the same value
+ * in between, and one of the two increments is lost.
  */
 export async function handleIncrementRequest() {
-  // Simulate network read delay
   const currentVal = db.counter;
-  await new Promise(r => setTimeout(r, 10)); 
-  
-  // Update
+  const fault = AsyncContext.getEngine()?.evaluateFaultDecision('DATABASE', { query: 'SELECT counter' });
+  if (fault?.type === 'SLOW_QUERY') {
+    await null; // the query result arrives later: other requests run first
+  }
   db.counter = currentVal + 1;
 }
 
 export function resetDb() {
-  db.counter = 0;
+  db = { counter: 0 };
 }
 
-export const lostUpdatePromise = definePromise({
-  id: "bug-suite-lost-update",
-  name: "No Lost Updates",
-  description: "Ensures that 5 concurrent increments exactly equal 5 in the DB.",
-  evaluate: async () => {
-    if (db.counter !== 5) {
-      return { pass: false, message: `Expected 5, got ${db.counter}. Lost update race occurred.` };
-    }
-    return { pass: true, message: "No lost updates." };
-  }
-});
+export const REQUESTS = 5;
+
+export async function lostUpdateWorkflow() {
+  resetDb();
+  await Promise.all(Array.from({ length: REQUESTS }, () => handleIncrementRequest()));
+}
+
+export const lostUpdateTemplates: FaultScheduleTemplate[] = [
+  {
+    id: '6b1f0f1e-8c1a-4c8e-9d65-3c2d7b0a1a01',
+    spec: { domain: 'DATABASE', type: 'SLOW_QUERY' },
+    probabilityRange: [0, 1],
+    target: { query: 'SELECT counter' },
+  },
+];
+
+export const lostUpdatePromise: ProgrammaticPromise = {
+  id: 'bug-suite-lost-update',
+  description: `${REQUESTS} concurrent increments leave the counter at exactly ${REQUESTS}.`,
+  severity: 'CRITICAL',
+  evaluate: () => ({
+    passed: db.counter === REQUESTS,
+    message: `Expected ${REQUESTS}, got ${db.counter}.`,
+  }),
+};
