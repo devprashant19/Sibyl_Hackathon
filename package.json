@@ -10,10 +10,12 @@
     "clean": "turbo run clean"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.9.1",
+    "prettier": "^3.3.3",
     "turbo": "^2.1.2",
     "typescript": "^5.5.4",
-    "prettier": "^3.3.3",
-    "eslint": "^9.9.1",
     "vitest": "^2.0.5"
   },
   "packageManager": "pnpm@9.9.0"

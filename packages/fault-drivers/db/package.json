@@ -12,6 +12,7 @@
     "@sibyl-shared": "workspace:*"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.0",

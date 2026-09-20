@@ -1,4 +1,4 @@
-import { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl-core';
 import { FaultSpec } from '@sibyl-shared';
 import { ClientRequestInterceptor } from '@mswjs/interceptors/ClientRequest';
 import { FetchInterceptor } from '@mswjs/interceptors/fetch';

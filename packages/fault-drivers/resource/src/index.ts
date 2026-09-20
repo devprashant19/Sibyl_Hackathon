@@ -1,4 +1,4 @@
-import { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl-core';
 import { startWatchdog, stopWatchdog } from './watchdog';
 import { startCpuPressure, stopCpuPressure } from './cpu-pressure';
 import { startMemoryPressure, stopMemoryPressure } from './memory-pressure';

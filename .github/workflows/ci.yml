@@ -49,3 +49,10 @@ jobs:
       - name: Run checks (All on Main)
         if: github.event_name == 'push'
         run: pnpm turbo run build lint test
+
+      - name: Enforce Code Coverage
+        run: pnpm vitest run --coverage
+        # Coverage thresholds are defined in each package's vitest.config.ts.
+        # If coverage drops below the threshold (e.g., 85% for core), this step will fail.
+        # To deliberately lower a threshold, update the lines threshold in vitest.config.ts
+        # in the respective package and include a justification in the PR description.

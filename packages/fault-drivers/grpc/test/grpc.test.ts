@@ -81,8 +81,14 @@ describe('GRPC Fault Driver', () => {
   });
 
   beforeEach(() => {
-    mockGetFaultDecision = vi.fn();
-    mockRecordEvent = vi.fn();
+    if (!mockGetFaultDecision) {
+      mockGetFaultDecision = vi.fn();
+      mockRecordEvent = vi.fn();
+    } else {
+      mockGetFaultDecision.mockReset();
+      mockRecordEvent.mockReset();
+    }
+    driver.uninstall();
     driver.install({
       clock: {} as any,
       getFaultDecision: mockGetFaultDecision,

@@ -1,8 +1,15 @@
-import { trace, metrics, Tracer, Meter } from '@opentelemetry/api';
+import type { Tracer, Meter } from '@opentelemetry/api';
 
-// MOCK: In a real deployment, we would also import and initialize the @opentelemetry/sdk-node
-// provider here to push to Jaeger/Prometheus. For v1, we expose the standard OTel API interfaces
-// so the rest of the application can instrument itself cleanly.
+let trace: any;
+let metrics: any;
+try {
+  const api = require('@opentelemetry/api');
+  trace = api.trace;
+  metrics = api.metrics;
+} catch (e) {
+  trace = { getTracer: () => ({ startActiveSpan: (n: any, o: any, cb: any) => cb({ setStatus: ()=>{}, recordException: ()=>{}, end: ()=>{} }) }) };
+  metrics = { getMeter: () => ({ createObservableGauge: ()=>({addCallback:()=>{}}), createHistogram: ()=>({record:()=>{}}), createCounter: ()=>({add:()=>{}}) }) };
+}
 
 let isInitialized = false;
 let tracer: Tracer;

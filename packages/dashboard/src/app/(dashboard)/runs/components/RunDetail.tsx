@@ -18,6 +18,7 @@ export function RunDetail({
   onRetry
 }: RunDetailProps) {
   const [isExplaining, setIsExplaining] = React.useState(false);
+  const [explanationError, setExplanationError] = React.useState<string | null>(null);
 
   if (error) {
     return (
@@ -186,6 +187,27 @@ export function RunDetail({
                 {run.rootCauseExplanation}
               </p>
             </Card>
+          ) : explanationError ? (
+            <Card className="p-6 bg-ember/5 border-ember/20">
+              <h3 className="font-display text-lg text-ember mb-2 flex items-center">
+                <AlertCircle className="mr-2 h-5 w-5" /> AI Explanation Unavailable
+              </h3>
+              <p className="text-sm text-parchment leading-relaxed font-body mb-4">
+                {explanationError}
+              </p>
+              <div className="text-xs text-muted mb-2">Raw captured evidence:</div>
+              <CodeBlock 
+                code={JSON.stringify({ events: events.filter(e => e.isFault), promise: run.failedPromise }, null, 2)} 
+                language="json"
+                className="bg-ink-3/30 border-ink-3 max-h-64 overflow-y-auto" 
+              />
+              <button 
+                className="mt-4 px-4 py-2 bg-ink-3 hover:bg-ink-3/80 text-parchment rounded-md text-sm transition-colors"
+                onClick={() => setExplanationError(null)}
+              >
+                Dismiss
+              </button>
+            </Card>
           ) : (
             <Card className="p-6 bg-ink flex flex-col items-center justify-center text-center space-y-4">
               <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-gold text-2xl">
@@ -201,9 +223,10 @@ export function RunDetail({
                 onClick={() => {
                   setIsExplaining(true);
                   setTimeout(() => {
-                    alert("Mock: Call to SibylExplainer finished. The UI would update with the validated narrative.");
+                    // Simulate an error (e.g. BudgetExceededError or ClaudeUnavailableError)
+                    setExplanationError("Budget exceeded for organization default-org. Current spend: $50.00, Limit: $50.00.");
                     setIsExplaining(false);
-                  }, 2000);
+                  }, 1000);
                 }}
               >
                 {isExplaining ? (

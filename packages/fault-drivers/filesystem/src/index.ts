@@ -1,4 +1,4 @@
-import { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl-core';
 import { wrapFs, wrapFsPromises } from './fs-wrapper';
 
 export class FilesystemFaultDriver implements FaultDriver {

@@ -1,4 +1,4 @@
-import { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl-core';
 import { Interceptor } from '@grpc/grpc-js';
 import { createSibylGrpcInterceptor } from './grpc-interceptor';
 

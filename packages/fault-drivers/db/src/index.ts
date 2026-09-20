@@ -1,4 +1,4 @@
-import { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl-core';
 import { wrapPgPool } from './pg-wrapper';
 import { wrapMysql2Pool } from './mysql2-wrapper';
 
