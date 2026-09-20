@@ -1,4 +1,4 @@
-import { CapturedEvent, PromiseResult, PromiseSeverity } from '@sibyl-shared';
+import { CapturedEvent, PromiseResult, PromiseSeverity } from '@sibyl/shared';
 import { SearchRunRecord } from './search/strategy';
 import * as fs from 'fs';
 import * as path from 'path';
