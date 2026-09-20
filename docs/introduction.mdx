@@ -1,0 +1,57 @@
+---
+title: Introduction
+description: "Welcome to the Sibyl Chaos Engine documentation."
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="Hero Dark"
+/>
+
+## What is Sibyl?
+
+Sibyl is the world's first **AI-native, Coverage-Guided Chaos Engineering Platform**.
+
+Traditional chaos engineering relies on "Chaos Monkeys"—randomly terminating instances in production and hoping you catch a bug. This approach is noisy, dangerous, and highly inefficient at finding complex concurrency bugs.
+
+Sibyl takes a fundamentally different approach. It acts like a **smart fuzzer for your distributed architecture**. Using advanced search algorithms (Monte Carlo Tree Search and Bayesian Optimization), Sibyl deterministically explores the edge cases of your system—network partitions, dropped database transactions, full queues, and CPU starvation—until it breaks the business invariants you care about. 
+
+When it finds a bug, it uses integrated LLM agents to generate a root-cause explanation and propose a code fix.
+
+## Core Pillars
+
+<CardGroup cols={2}>
+  <Card
+    title="Programmatic Promises"
+    icon="code"
+    href="/concepts/promises-and-determinism"
+  >
+    Define your system's invariants in code. "Orders are never double-charged."
+  </Card>
+  <Card
+    title="Coverage-Guided Search"
+    icon="magnifying-glass"
+    href="/deep-dives/search-algorithms"
+  >
+    MCTS and Bayesian engines aggressively hunt for the exact fault sequence that breaks your promise.
+  </Card>
+  <Card
+    title="Language SDKs"
+    icon="laptop-code"
+    href="/quickstarts/node"
+  >
+    Drop-in integrations for Node.js, Python, Java, and Go to intercept network, DB, and MQ traffic.
+  </Card>
+  <Card
+    title="AI Remediation"
+    icon="robot"
+  >
+    Integrated Anthropic Claude agents explain exactly *why* your architecture failed and how to patch it.
+  </Card>
+</CardGroup>

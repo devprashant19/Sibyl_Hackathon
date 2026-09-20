@@ -1,0 +1,58 @@
+---
+title: "Python Quickstart"
+description: "Instrument your Python application for Sibyl chaos testing."
+---
+
+## 1. Installation
+
+Install the Sibyl Python SDK via pip:
+
+```bash
+pip install sibyl-sdk
+```
+
+## 2. WSGI/ASGI Middleware Instrumentation
+
+To inject faults into a Python web application (like Django, Flask, or FastAPI), wrap your application in the Sibyl middleware.
+
+**FastAPI Example:**
+
+```python
+from fastapi import FastAPI
+from sibyl_sdk.middleware import SibylMiddleware
+
+app = FastAPI()
+
+# Intercepts requests and injects network/DB faults based on the active Schedule
+app.add_middleware(
+    SibylMiddleware,
+    project_id="prj_12345",
+    api_key="your_api_key"
+)
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+```
+
+## 3. Defining Promises
+
+Use the `@promise` decorator to define your system invariants.
+
+```python
+from sibyl_sdk import promise
+
+@promise(
+    id="queue-depth",
+    name="Queue Depth Bound",
+    description="The background task queue never exceeds 10,000 items under backpressure."
+)
+def evaluate_queue():
+    import redis
+    r = redis.Redis()
+    depth = r.llen("task_queue")
+    
+    if depth > 10000:
+        return {"pass": False, "message": f"Queue overflow! Depth: {depth}"}
+    return {"pass": True, "message": "Queue within limits"}
+```

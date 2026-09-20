@@ -1,0 +1,66 @@
+---
+title: "Java Quickstart"
+description: "Instrument your Java/Spring Boot application for Sibyl chaos testing."
+---
+
+## 1. Installation
+
+Add the Sibyl Agent to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>dev.sibyl</groupId>
+    <artifactId>sibyl-java-agent</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+## 2. JVM Agent Injection
+
+Sibyl for Java uses a JVM Agent to intercept network and thread scheduling via bytecode manipulation (ByteBuddy). Attach the agent when starting your JVM:
+
+```bash
+java -javaagent:sibyl-agent.jar -Dsibyl.project.id=prj_12345 -jar myapp.jar
+```
+
+Alternatively, use the Spring Boot Starter:
+
+```java
+import dev.sibyl.sdk.EnableSibyl;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+@EnableSibyl // Enables fault interception beans
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+## 3. Defining Promises
+
+Define Promises by implementing the `SibylPromise` interface.
+
+```java
+import dev.sibyl.sdk.Promise;
+import dev.sibyl.sdk.PromiseResult;
+
+@Promise(
+    id = "atomic-tx",
+    name = "Atomic DB Transactions",
+    description = "Inventory and Order records must remain perfectly consistent."
+)
+public class AtomicTransactionPromise implements SibylPromise {
+    
+    @Override
+    public PromiseResult evaluate() {
+        int orphanedRecords = jdbc.queryForObject("SELECT count(*) FROM inventory WHERE order_id IS NULL");
+        if (orphanedRecords > 0) {
+            return PromiseResult.fail("Found " + orphanedRecords + " orphaned records!");
+        }
+        return PromiseResult.pass();
+    }
+}
+```

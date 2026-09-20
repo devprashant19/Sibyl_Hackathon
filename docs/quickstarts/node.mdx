@@ -1,0 +1,53 @@
+---
+title: "Node.js Quickstart"
+description: "Instrument your Node.js application for Sibyl chaos testing."
+---
+
+## 1. Installation
+
+Install the Sibyl Node SDK via npm or pnpm:
+
+```bash
+npm install @sibyl/sdk
+```
+
+## 2. Global Instrumentation
+
+To inject faults seamlessly without modifying your application logic, initialize Sibyl as early as possible in your application's lifecycle (e.g., in `index.ts` or `server.ts`).
+
+```typescript
+import { install } from '@sibyl/sdk';
+
+// This automatically intercepts the standard 'net', 'http', and 'pg' modules
+install({
+  projectId: 'prj_12345',
+  apiKey: process.env.SIBYL_API_KEY
+});
+
+// Continue with your normal app boot sequence
+import './server';
+```
+
+## 3. Defining Promises (Invariants)
+
+Promises define the business invariants that Sibyl will attempt to break.
+
+```typescript
+import { definePromise } from '@sibyl/sdk';
+
+export const checkoutPromise = definePromise({
+  id: 'checkout-idempotency',
+  name: 'Checkout processing is idempotent',
+  description: 'Ensures that a user cannot be double-charged if a webhook is retried.',
+  evaluate: async () => {
+    // Assert against your database or metrics
+    const doubleCharges = await db.query('SELECT count(*) FROM charges WHERE duplicate = true');
+    if (doubleCharges > 0) {
+      return { pass: false, message: 'Double charge detected!' };
+    }
+    return { pass: true, message: 'Clean execution.' };
+  }
+});
+```
+
+Run `npx @sibyl/cli run` to let the search engine hunt for faults!

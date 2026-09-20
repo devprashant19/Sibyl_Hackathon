@@ -1,0 +1,44 @@
+---
+title: "Fault Domains API"
+description: "Reference for the Fault Injection payloads."
+---
+
+## Overview
+A `FaultSchedule` is an array of faults that the Sibyl engine executes during a simulation. The SDKs intercept these instructions and apply them to your running application.
+
+## 1. Network Faults
+Intercepts HTTP and gRPC outbound calls.
+
+- **`type: 'network'`**
+- `target`: URL pattern or host (e.g., `api.stripe.com`)
+- `action`: `drop` | `delay` | `corrupt` | `http_500`
+- `delay_ms`: The latency to inject (if action is `delay`).
+
+```json
+{
+  "type": "network",
+  "target": "api.stripe.com",
+  "action": "delay",
+  "delay_ms": 5000
+}
+```
+
+## 2. Database Faults
+Intercepts SQL queries via native drivers (`pg`, `mysql2`).
+
+- **`type: 'database'`**
+- `target`: Table name or specific SQL query regex.
+- `action`: `connection_drop` | `lock_timeout` | `transaction_abort`
+
+## 3. Message Queue Faults
+Intercepts Kafka, SQS, and RabbitMQ workers.
+
+- **`type: 'mq'`**
+- `target`: Topic or Queue name.
+- `action`: `duplicate_delivery` | `delay_delivery` | `poison_pill`
+
+## 4. Hardware/OS Pressure
+Simulates node-level starvation inside the sandbox.
+
+- **`type: 'cpu_pressure'`** | **`memory_pressure'`**
+- `utilization`: Target usage percentage (e.g., `99`)

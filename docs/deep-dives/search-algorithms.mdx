@@ -1,0 +1,30 @@
+---
+title: "How the Search Engine Works"
+description: "Deep dive into Monte Carlo Tree Search and Bayesian Optimization."
+---
+
+To break your system, Sibyl must find the exact sequence and timing of faults (e.g., "Drop the DB connection exactly 12ms after the Stripe API returns"). 
+
+The search space for this is astronomically large. Traditional Chaos Monkey tools use **Random Search**, which is mathematically guaranteed to miss deep, stateful edge cases.
+
+Sibyl uses advanced algorithms to navigate this space.
+
+## 1. Monte Carlo Tree Search (MCTS)
+MCTS builds a decision tree of faults. 
+
+- **Selection**: It uses the UCB1 formula to balance *exploitation* (drilling down into a sequence that seems to degrade the system) with *exploration* (trying a new API endpoint to attack).
+- **Expansion**: It adds a new fault to the sequence (e.g., adding a Redis delay after the DB drop).
+- **Simulation**: It runs your app.
+- **Backpropagation**: If the promise broke, or if latencies spiked dangerously, it rewards that branch of the tree.
+
+MCTS is incredibly powerful for discovering stateful, multi-step concurrency bugs (e.g., "Drop network, wait for retry, then crash the worker").
+
+## 2. Bayesian Optimization
+Once MCTS finds the *sequence* of faults, the Bayesian engine takes over to find the exact *continuous parameters* (e.g., the exact millisecond delay).
+
+It uses a **Gaussian Process Surrogate Model**. Instead of randomly trying `delay=10ms`, `delay=50ms`, etc., it builds a mathematical map of your system's response to latency. 
+
+By calculating the *Expected Improvement (EI)*, the Bayesian engine zeroes in on the exact microsecond required to trigger a timeout or race condition, usually finding the bug in fewer than 15 iterations.
+
+## Why this matters
+By treating Chaos Engineering as an AI search problem, Sibyl finds the bugs that cause 3:00 AM outages—the ones your engineers would never think to write a unit test for.

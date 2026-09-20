@@ -1,0 +1,64 @@
+---
+title: "Go Quickstart"
+description: "Instrument your Go microservices for Sibyl chaos testing."
+---
+
+## 1. Installation
+
+Install the Go SDK using `go get`:
+
+```bash
+go get github.com/sibyl-dev/sibyl-go
+```
+
+## 2. HTTP/gRPC Instrumentation
+
+Sibyl provides wrappers for standard Go `net/http` and `database/sql` drivers to intercept traffic and inject latency or errors.
+
+```go
+package main
+
+import (
+    "net/http"
+    "github.com/sibyl-dev/sibyl-go/middleware"
+)
+
+func main() {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", myHandler)
+
+    // Wrap the handler with Sibyl's fault injector
+    faultMux := middleware.SibylHTTPHandler(mux, middleware.Config{
+        ProjectID: "prj_12345",
+    })
+
+    http.ListenAndServe(":8080", faultMux)
+}
+```
+
+## 3. Defining Promises
+
+Define your invariants as standard Go functions returning `sibyl.Result`.
+
+```go
+package tests
+
+import (
+    "github.com/sibyl-dev/sibyl-go/promise"
+)
+
+func init() {
+    promise.Define(promise.Definition{
+        ID: "api-latency",
+        Name: "P99 Latency SLA",
+        Description: "The API must always respond within 500ms, even if the DB is degraded.",
+        Evaluate: func() promise.Result {
+            metrics := fetchPrometheusMetrics()
+            if metrics.P99 > 500 {
+                return promise.Failf("SLA violated: P99 was %d ms", metrics.P99)
+            }
+            return promise.Pass("SLA met")
+        },
+    })
+}
+```

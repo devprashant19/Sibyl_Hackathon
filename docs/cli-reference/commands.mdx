@@ -1,0 +1,31 @@
+---
+title: "CLI Reference"
+description: "The @sibyl/cli commands for local and CI workflows."
+---
+
+## `sibyl run`
+Starts a local chaos engineering session.
+
+```bash
+sibyl run <target-script> --promise <promise-id>
+```
+**Options:**
+- `--strategy`: The search algorithm (`random`, `ucb1`, `mcts`, `bayesian`). Default: `mcts`.
+- `--budget`: Maximum number of iterations before giving up. Default: `100`.
+- `--seed`: Fix the PRNG seed for deterministic debugging.
+
+## `sibyl ci`
+Executes in a CI/CD pipeline (e.g., GitHub Actions). Returns exit code `1` if a promise is broken, failing the build.
+
+```bash
+sibyl ci --project-id prj_123
+```
+*Note: Automatically exports results to the Sibyl Dashboard.*
+
+## `sibyl replay <run-id>`
+Re-executes a failed run locally to attach a debugger.
+
+```bash
+sibyl replay run_abc123
+```
+This fetches the exact `FaultSchedule` and PRNG seed from the cloud and runs your local application exactly as it failed in CI.

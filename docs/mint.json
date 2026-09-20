@@ -1,0 +1,58 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Sibyl Chaos Engine",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "colors": {
+    "primary": "#d4af37",
+    "light": "#f8f5e6",
+    "dark": "#0a0a0a",
+    "background": {
+      "dark": "#0a0a0a"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/devprashant19/Sibyl"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction"
+      ]
+    },
+    {
+      "group": "Concepts",
+      "pages": [
+        "concepts/promises-and-determinism"
+      ]
+    },
+    {
+      "group": "SDK Quickstarts",
+      "pages": [
+        "quickstarts/node",
+        "quickstarts/python",
+        "quickstarts/java",
+        "quickstarts/go"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "cli-reference/commands",
+        "api-reference/fault-domains"
+      ]
+    },
+    {
+      "group": "Deep Dives",
+      "pages": [
+        "deep-dives/search-algorithms"
+      ]
+    }
+  ]
+}
