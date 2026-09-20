@@ -3,12 +3,11 @@ import { handleError, ConfigLoadError, ApiKeyError, NetworkError, SDKMismatchErr
 import chalk from 'chalk';
 
 describe('CLI Error Handling', () => {
-  let logSpy: ReturnType<typeof vi.spyOn>;
   let errorSpy: ReturnType<typeof vi.spyOn>;
   let exitSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
   });

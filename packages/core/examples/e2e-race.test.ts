@@ -6,7 +6,6 @@ import type { FaultScheduleTemplate } from '@sibyl/shared';
 // has a gap, and two concurrent requests can both successfully "checkout" the last item.
 
 let inventory = 1; // 1 item left
-let successCount = 0;
 
 // This is our vulnerable "Express app" handler
 async function handleCheckout() {
@@ -35,7 +34,6 @@ async function handleCheckout() {
   if (currentInventory > 0) {
     // 3. Update inventory
     inventory = currentInventory - 1;
-    successCount++;
     
     engine?.recordEvent({
       domain: 'HTTP',
@@ -51,24 +49,24 @@ async function handleCheckout() {
 
 // A mock driver that just registers itself but relies on our inline interception above
 class MockDbDriver implements FaultDriver {
-  domain: 'DATABASE' = 'DATABASE';
+  domain = 'DATABASE' as const;
   install(_ctx: DriverContext) {}
   uninstall() {}
 }
 
 class MockHttpDriver implements FaultDriver {
-  domain: 'HTTP' = 'HTTP';
+  domain = 'HTTP' as const;
   install(_ctx: DriverContext) {}
   uninstall() {}
 }
 
 describe('Search Orchestrator E2E Race Condition', () => {
   it('discovers a timing vulnerability (race condition) through fuzzing', async () => {
-    // We expect inventory to never drop below 0, and successCount to never exceed 1
-    // since we only started with 1 item.
+    // With one item in stock, at most one checkout may succeed. Successes are counted from the
+    // captured HTTP events.
     const NoNegativeInventoryPromise: ProgrammaticPromise = {
       id: 'no-negative-inventory',
-      description: 'Inventory must never be double-spent (successCount <= 1)',
+      description: 'Inventory must never be double-spent (at most one successful checkout)',
       severity: 'CRITICAL',
       evaluate(ctx) {
         // Evaluate by analyzing HTTP events
@@ -93,7 +91,6 @@ describe('Search Orchestrator E2E Race Condition', () => {
       workflow: async () => {
         // Reset state for this run
         inventory = 1;
-        successCount = 0;
         
         // Simulate two concurrent requests hitting our express app
         await Promise.all([
@@ -116,7 +113,7 @@ describe('Search Orchestrator E2E Race Condition', () => {
     const result = await orchestrator.run();
 
     // Since we fuzzed the latency of the SELECT query independently for the two concurrent requests,
-    // they should overlap eventually, causing BOTH to read `inventory = 1`, and both to increment `successCount`.
+    // they should overlap eventually, causing BOTH to read `inventory = 1` and both to succeed.
     
     // The orchestrator should have early exited!
     expect(result.totalRuns).toBeLessThanOrEqual(20);
