@@ -1,5 +1,10 @@
 # Sibyl Data Residency Guarantees
 
+> **Status: design document.** This describes a planned hosted, multi-region deployment. None of it exists
+> today: there is no hosted control plane, no regional worker pool, and the worker package is scaffolding.
+> What runs today is local — the CLI runs next to your code and the optional API stores sessions wherever
+> you run it. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §6.3.
+
 For enterprise customers with strict data-residency and compliance requirements (e.g., GDPR, HIPAA), Sibyl offers two deployment models: **Multi-Region SaaS** and **Full Self-Hosted**.
 
 This document outlines exactly what data residency guarantees are provided by the Multi-Region architecture.

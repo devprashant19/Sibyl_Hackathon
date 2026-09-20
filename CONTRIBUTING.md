@@ -6,10 +6,11 @@ Thank you for your interest in contributing to Sibyl. This document covers the d
 
 ### Prerequisites
 
-- **Node.js** ≥ 20 (we recommend using [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm))
-- **pnpm** ≥ 9.9 (`corepack enable && corepack prepare pnpm@9.9.0 --activate`)
-- **Docker** & **Docker Compose** (for worker sandboxes and integration tests)
-- **PostgreSQL** 15+ and **Redis** 7+ (or use `docker-compose up -d`)
+- **Node.js** ≥ 22
+- **pnpm** 9.9 (`corepack enable`)
+- **Docker** — only for the db/mq driver integration tests (`pnpm test:integration`)
+
+No database or Redis is needed for the CLI, API, dashboard or any unit test.
 
 ### Getting Started
 
@@ -17,24 +18,21 @@ Thank you for your interest in contributing to Sibyl. This document covers the d
 git clone https://github.com/devprashant19/Sibyl.git
 cd Sibyl
 pnpm install
-pnpm build
+pnpm smoke
 ```
 
 ### Running Tests
 
 ```bash
-# All tests (via Turborepo)
-pnpm test
-
-# Single package
-cd packages/core && pnpm test
-
-# Watch mode
-cd packages/core && pnpm test -- --watch
-
-# Load tests
-npx tsx packages/core/test/load-test.ts
+pnpm smoke                          # end to end, ~15 s
+pnpm test                           # every package (turbo)
+pnpm test:drivers                   # fault drivers incl. determinism properties
+pnpm typecheck                      # tsc --build
+pnpm --filter @sibyl/core test      # one package
 ```
+
+Before opening a pull request, all four must pass. Read [`CLAUDE.md`](CLAUDE.md) for the invariants that
+are easy to break, and [`docs/development.md`](docs/development.md) for how to add a driver or strategy.
 
 ## Monorepo Structure
 
@@ -45,7 +43,8 @@ This project uses **pnpm workspaces** with **Turborepo** for build orchestration
 Turborepo handles dependency ordering automatically via `turbo.json`. The general dependency graph is:
 
 ```
-shared → core → {api, worker, agent, cli, sdk-*}
+shared → core → fault-drivers → {cli, api, worker, sdk-node}
+shared → agent → cli
 ui → dashboard
 ```
 
@@ -78,7 +77,7 @@ Always run `pnpm build` from the root after making cross-package changes.
 
 - Unit tests live alongside source in `__tests__/` or in a top-level `test/` directory.
 - Use **Vitest** for all TypeScript tests.
-- The bug-suite tests in `packages/core/examples/bug-suite/` are deterministic regression tests for the search engine. If you modify search strategies, these tests must still pass with the documented seeds.
+- Engine defects get a regression test in `packages/core/test/regressions.test.ts` that fails on the old code.
 - **Never** commit tests that depend on external services (APIs, databases) without a mock. Use the existing mock patterns in `packages/agent/tests/`.
 
 ## Branching & Pull Requests
@@ -115,34 +114,8 @@ refactor: extract SearchStrategy interface
 chore: bump turborepo to 2.1.3
 ```
 
-## Adding a New Fault Driver
+## Adding a Fault Driver or Search Strategy
 
-1. Create a new directory under `packages/fault-drivers/<domain>/`.
-2. Implement the `FaultDriver` interface from `packages/core/src/driver.ts`.
-3. The driver must:
-   - Intercept the relevant I/O operations using monkey-patching or module instrumentation.
-   - Call `context.getFaultDecision()` on each intercepted operation.
-   - Call `context.recordEvent()` for every operation (faulted or not).
-   - Cleanly restore original behavior in `uninstall()`.
-4. Add the domain to the `FaultDomain` union type in `packages/shared`.
-5. Add Zod schemas for the new `FaultSpec` variants.
-6. Write at least one bug-suite example that demonstrates a bug catchable only by this driver.
-7. Document the driver in `docs/reference/fault-domains.mdx`.
-
-## Adding a New Search Strategy
-
-1. Implement the `SearchStrategy` interface from `packages/core/src/search/strategy.ts`.
-2. The interface requires:
-   - `next(iteration: number): FaultSchedule[]` — returns the schedules for the next run.
-   - `feedback(result: RunResult): void` — receives the result of the previous run for learning.
-3. Add the strategy to the CLI's `--strategy` flag options.
-4. Document the strategy in `docs/deep-dives/search-algorithms.mdx`.
-5. Benchmark it against the bug-suite to establish a baseline detection rate.
-
-## Security
-
-If you discover a security vulnerability, **do not** open a public issue. See [SECURITY.md](./SECURITY.md) for responsible disclosure instructions.
-
-## License
-
-By contributing to Sibyl, you agree that your contributions will be licensed under the same license as the project.
+See [`docs/development.md`](docs/development.md#adding-a-fault-driver). Two rules matter more than the rest:
+drivers take every random choice from the engine's seeded streams, and strategies key their bookkeeping
+by schedule id and are tested through `SearchOrchestrator`.
