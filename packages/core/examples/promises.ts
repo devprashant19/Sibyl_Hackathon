@@ -1,4 +1,4 @@
-import { ProgrammaticPromise, allOf, anyOf } from '../src/promise';
+import { allOf, type PromiseContext, type ProgrammaticPromise } from '@sibyl/core';
 
 /**
  * Ensures a checkout POST request was successfully answered (HTTP 200).
@@ -8,9 +8,9 @@ export const CheckoutHttpPromise: ProgrammaticPromise = {
   description: 'Checkout HTTP endpoint returned 200 OK',
   severity: 'HIGH',
   evaluate(ctx) {
-    const events = ctx.timeline(e => e.domain === 'HTTP');
-    return events.some(e => 
-      e.payload.url.includes('/checkout') && 
+    return (ctx as PromiseContext).timeline().some(e =>
+      e.domain === 'HTTP' &&
+      e.payload.url.includes('/checkout') &&
       e.payload.statusCode === 200
     );
   }
@@ -24,8 +24,9 @@ export const OrderDbPromise: ProgrammaticPromise = {
   description: 'Order was saved to database',
   severity: 'CRITICAL',
   evaluate(ctx) {
-    const events = ctx.timeline(e => e.domain === 'DATABASE');
-    return events.some(e => e.payload.query.includes('INSERT INTO orders'));
+    return (ctx as PromiseContext).timeline().some(e =>
+      e.domain === 'DATABASE' && e.payload.query.includes('INSERT INTO orders')
+    );
   }
 };
 

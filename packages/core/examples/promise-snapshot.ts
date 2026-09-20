@@ -1,66 +1,59 @@
-import { SearchOrchestrator } from '../src/orchestrator';
-import { snapshotPromise } from '../src/promise';
-import { AsyncContext } from '../src/async-context';
+import { pathToFileURL } from 'url';
+import { SearchOrchestrator, snapshotPromise } from '@sibyl/core';
 
 /**
- * Demonstrates a snapshot promise.
- * 
- * Snapshot promises ensure that the final result of a workflow matches
- * a known "golden" state. This is highly useful for regression testing
- * complex data structures, ensuring faults don't alter the final shape.
+ * A snapshot promise: the final state of a workflow must match a stored "golden" file.
+ *
+ *   cd packages/core && npx tsx examples/promise-snapshot.ts --update-snapshots   # write the golden file
+ *   cd packages/core && npx tsx examples/promise-snapshot.ts                      # compare against it
+ *
+ * The golden file is written to __snapshots__/final_invoice_state.snap.json in the current directory.
  */
 
-const mySnapshotPromise = snapshotPromise(
+interface Invoice {
+  id: string;
+  amount: number;
+  status: 'PAID' | 'PENDING';
+  items: { name: string; price: number }[];
+}
+
+// The application's output for the current run (a database row in a real system).
+let lastInvoice: Invoice | undefined;
+
+async function generateInvoice(): Promise<void> {
+  lastInvoice = {
+    id: 'inv_123',
+    amount: 500,
+    status: 'PAID',
+    items: [{ name: 'Subscription', price: 500 }],
+  };
+}
+
+const invoiceSnapshot = snapshotPromise(
   'final_invoice_state',
   'Invoice should always match the golden state regardless of retries',
-  (ctx) => {
-    // In a real system, we'd query the DB for the invoice
-    // Here we just extract it from the recorded events
-    const allEvents = ctx.events;
-    const finalStateEvent = allEvents.find(e => e.type === 'INVOICE_GENERATED');
-    return finalStateEvent ? finalStateEvent.payload : { error: 'Invoice not generated' };
-  }
+  () => lastInvoice ?? { error: 'Invoice not generated' },
 );
 
 async function run() {
+  const updateSnapshots = process.argv.includes('--update-snapshots');
   const orchestrator = new SearchOrchestrator({
     workflow: async () => {
-      const engine = AsyncContext.getEngine();
-      if (engine) {
-        // Simulate generating an invoice
-        (engine as any).recordEvent({
-          type: 'INVOICE_GENERATED',
-          domain: 'HTTP',
-          timestamp: Date.now(),
-          payload: {
-            id: 'inv_123',
-            amount: 500,
-            status: 'PAID',
-            items: [
-              { name: 'Subscription', price: 500 }
-            ]
-          }
-        });
-      }
+      lastInvoice = undefined;
+      await generateInvoice();
     },
     templates: [], // No faults for this simple demo
-    promises: [mySnapshotPromise],
+    promises: [invoiceSnapshot],
     iterations: 1,
     seed: 'demo-snapshot',
-    updateSnapshots: process.argv.includes('--update-snapshots')
+    updateSnapshots,
   });
 
-  console.log('Running snapshot orchestration session...');
-  if (process.argv.includes('--update-snapshots')) {
-    console.log('Update snapshots mode is ON');
-  }
-
+  console.log(`Running snapshot session${updateSnapshots ? ' (updating snapshots)' : ''}...`);
   const results = await orchestrator.run();
-  
-  console.log('\nResults:');
+
   console.log(`Passed: ${results.passes}`);
   console.log(`Failures: ${results.failures}`);
-  
   const promiseRes = results.results[0]?.promiseResults[0];
   if (promiseRes) {
     console.log(`Promise ${promiseRes.promiseId}: ${promiseRes.passed ? 'PASSED' : 'FAILED'}`);
@@ -68,6 +61,6 @@ async function run() {
   }
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   run().catch(console.error);
 }
