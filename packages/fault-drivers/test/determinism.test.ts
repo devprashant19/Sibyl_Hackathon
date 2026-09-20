@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fc from 'fast-check';
+// Default import: the interceptor patches the CommonJS module object, which a namespace import doesn't see.
+import http from 'http';
+import * as realFs from 'fs';
+import * as realCp from 'child_process';
+import * as os from 'os';
+import * as path from 'path';
 import { VirtualClock } from '../../core/src/clock';
 import { PRNG } from '../../core/src/prng';
 import type { DriverContext, FaultDriver } from '../../core/src/driver';
@@ -68,11 +74,17 @@ const MemoryFaultSpecArb = fc.record({
 
 // --- Harness ---
 
+/**
+ * Runs the workload twice per generated (seed, specs) and requires byte-identical event logs.
+ * `expectedEvents` pins how many events the specs must produce, so a workload that never reaches the
+ * driver (and trivially compares two empty logs) fails instead of passing.
+ */
 async function assertDeterminism<T extends FaultDriver>(
   DriverClass: new () => T,
   domain: string,
   specsArb: fc.Arbitrary<FaultSpec[]>,
-  workload: (driver: T) => Promise<void> | void
+  workload: (driver: T) => Promise<void> | void,
+  expectedEvents: (specs: FaultSpec[]) => number
 ) {
   await fc.assert(
     fc.asyncProperty(
@@ -82,6 +94,7 @@ async function assertDeterminism<T extends FaultDriver>(
         const events1 = await runSimulation(DriverClass, domain, seed, specs, workload);
         const events2 = await runSimulation(DriverClass, domain, seed, specs, workload);
         expect(events1).toEqual(events2);
+        expect(events1).toHaveLength(expectedEvents(specs));
       }
     ),
     { numRuns: 10 }
@@ -98,7 +111,7 @@ async function runSimulation<T extends FaultDriver>(
   const clock = new VirtualClock();
   clock.install({ mode: 'accelerated', startTime: 1000000 });
   const prng = new PRNG(seed);
-  
+
   const events: CapturedEvent[] = [];
   let currentSpecIdx = 0;
 
@@ -123,18 +136,21 @@ async function runSimulation<T extends FaultDriver>(
   driver.install(context);
 
   try {
-    const workloadPromise = Promise.resolve().then(() => workload(driver));
-    
     let finished = false;
-    workloadPromise.then(() => { finished = true; }).catch(() => { finished = true; });
-    
-    let iters = 0;
-    while (!finished && iters < 100) {
+    let workloadError: unknown;
+    Promise.resolve()
+      .then(() => workload(driver))
+      .catch(err => { workloadError = err; })
+      .finally(() => { finished = true; });
+
+    // performance.now is not virtualised, so this bounds real time even while the clock is installed.
+    const deadline = performance.now() + 10_000;
+    while (!finished) {
+      if (performance.now() > deadline) throw new Error(`${domain} workload did not finish`);
       await clock.runAllAsync();
       await new Promise(r => setImmediate(r));
-      iters++;
     }
-  } catch (err) {
+    if (workloadError) throw workloadError;
   } finally {
     driver.uninstall();
     clock.uninstall();
@@ -143,20 +159,46 @@ async function runSimulation<T extends FaultDriver>(
   return events;
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // --- Driver Suites ---
 
 describe('Fault Driver Determinism Properties', () => {
+  let server: http.Server;
+  let serverUrl: string;
+  const fsDir = path.join(os.tmpdir(), 'sibyl-determinism-fs');
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => res.end('OK'));
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', () => resolve()));
+    serverUrl = `http://127.0.0.1:${(server.address() as import('net').AddressInfo).port}`;
+    realFs.mkdirSync(fsDir, { recursive: true });
+  });
+
+  afterAll(async () => {
+    await new Promise(resolve => server.close(resolve));
+    realFs.rmSync(fsDir, { recursive: true, force: true });
+  });
 
   it('HTTP Driver produces identical CapturedEvents', async () => {
     await assertDeterminism(
-      HttpFaultDriver, 
-      'HTTP', 
+      HttpFaultDriver,
+      'HTTP',
       fc.array(HttpFaultSpecArb, { maxLength: 3 }),
       async () => {
-        try {
-          await fetch('http://example.com/api/users');
-        } catch {}
-      }
+        // node:http rather than fetch: undici keeps a 1s JS timer ticking while a request is in flight,
+        // and the harness fires it on every loop turn, so a later request's virtual timestamp would
+        // depend on the previous round trip's real latency.
+        for (let i = 0; i < 3; i++) {
+          await new Promise<void>(resolve => {
+            http.get(`${serverUrl}/api/users/${i}`, res => {
+              res.on('error', () => {}).on('close', () => resolve()).resume();
+            }).on('error', () => resolve());
+          });
+        }
+      },
+      // Every intercepted request with a fault records one event
+      specs => specs.length
     );
   });
 
@@ -165,11 +207,14 @@ describe('Fault Driver Determinism Properties', () => {
       FilesystemFaultDriver,
       'FILESYSTEM',
       fc.array(FilesystemFaultSpecArb, { maxLength: 3 }),
-      async () => {
-        const fs = await import('fs');
-        try { fs.readFileSync('/tmp/test-file.txt'); } catch {}
-        try { fs.writeFileSync('/tmp/test-file2.txt', 'data'); } catch {}
-      }
+      async (driver) => {
+        const fs = driver.wrapFs(realFs);
+        const file = path.join(fsDir, 'test-file.txt');
+        try { fs.writeFileSync(file, 'data'); } catch {}
+        try { fs.readFileSync(file); } catch {}
+        try { await fs.promises.stat(file); } catch {}
+      },
+      specs => specs.length
     );
   });
 
@@ -179,10 +224,16 @@ describe('Fault Driver Determinism Properties', () => {
       'DATABASE',
       fc.array(DatabaseFaultSpecArb, { maxLength: 3 }),
       async (driver) => {
-        const mockPool = { query: async () => [{ id: 1 }] };
-        const wrapped = driver.wrapPgPool(mockPool);
-        try { await wrapped.query('SELECT 1'); } catch {}
-      }
+        const mockClient = { query: async () => ({ rows: [{ id: 1 }] }), release: () => {} };
+        const mockPool = { connect: async () => mockClient, query: async () => ({ rows: [{ id: 1 }] }) };
+        const client = await driver.wrapPgPool(mockPool).connect();
+        for (const statement of ['BEGIN', "INSERT INTO users VALUES ('a')", "INSERT INTO users VALUES ('b')", 'COMMIT']) {
+          try { await client.query(statement); } catch {}
+        }
+      },
+      // Spec i is decided for statement i. PARTIAL_COMMIT only fires on the second statement inside
+      // the transaction (index 2, after BEGIN); every other fault type always fires.
+      specs => specs.filter((spec, i) => spec.type !== 'PARTIAL_COMMIT' || i === 2).length
     );
   });
 
@@ -196,14 +247,19 @@ describe('Fault Driver Determinism Properties', () => {
           producer: () => ({ send: async () => [{ errorCode: 0 }] }),
           consumer: () => ({ run: async (c: any) => {
             if (c.eachMessage) {
-              try { await c.eachMessage({ topic: 'test', message: { key: '1' } }); } catch {}
+              try { await c.eachMessage({ topic: 'test', partition: 0, message: { key: '1' } }); } catch {}
             }
           }})
         };
+        class SendMessageCommand { constructor(public input: any) {} }
+        const sqs = { send: async () => ({ MessageId: 'real' }) };
+
         const wrapped = driver.wrapKafka(kafka);
-        try { await wrapped.producer().send({ topic: 'test', messages: [{ value: '1' }] }); } catch {}
+        try { await wrapped.producer().send({ topic: 'test', messages: [{ value: '1' }, { value: '2' }] }); } catch {}
         try { await wrapped.consumer().run({ eachMessage: async () => {} }); } catch {}
-      }
+        try { await driver.wrapSqsClient(sqs).send(new SendMessageCommand({ QueueUrl: 'q', MessageBody: 'm' })); } catch {}
+      },
+      specs => specs.length
     );
   });
 
@@ -216,13 +272,16 @@ describe('Fault Driver Determinism Properties', () => {
         const interceptor = driver.createInterceptor();
         const nextCall = () => (metadata: any, listener: any) => {};
         const options = { method_definition: { path: '/Service/Method' } } as any;
-        const call = interceptor(options, nextCall);
-        
-        try {
-          // Simulate start call
-          (call as any).requester.start({}, { onReceiveStatus: () => {} }, () => {});
-        } catch {}
-      }
+
+        for (let i = 0; i < 3; i++) {
+          const call = interceptor(options, nextCall);
+          try {
+            // Simulate start call
+            (call as any).requester.start({}, { onReceiveStatus: () => {} }, () => {});
+          } catch {}
+        }
+      },
+      specs => specs.length
     );
   });
 
@@ -236,37 +295,56 @@ describe('Fault Driver Determinism Properties', () => {
           spawn: () => ({ pid: 999, kill: () => {} }),
           exec: () => ({ pid: 998, kill: () => {} }),
           fork: () => ({ pid: 997, kill: () => {} })
-        };
+        } as unknown as typeof realCp;
         const wrapped = driver.wrapChildProcess(mockCp);
         try { wrapped.spawn('ls'); } catch {}
-      }
+        try { wrapped.exec('ls'); } catch {}
+        try { wrapped.fork('script.js'); } catch {}
+        await sleep(100); // let the injected kill timers fire
+      },
+      specs => specs.length
     );
   });
 
-  it('CPU Driver produces identical CapturedEvents', async () => {
-    await assertDeterminism(
-      CpuFaultDriver,
-      'CPU',
-      fc.array(CpuFaultSpecArb, { maxLength: 3 }),
-      async (driver) => {
-        process.env.SIBYL_SANDBOX_MODE = 'true';
-        try { driver.startPressure(50, 50); } catch {}
-        try { driver.stopPressure(); } catch {}
-      }
-    );
-  });
+  describe('resource drivers', () => {
+    let previousSandboxMode: string | undefined;
 
-  it('Memory Driver produces identical CapturedEvents', async () => {
-    await assertDeterminism(
-      MemoryFaultDriver,
-      'MEMORY',
-      fc.array(MemoryFaultSpecArb, { maxLength: 3 }),
-      async (driver) => {
-        process.env.SIBYL_SANDBOX_MODE = 'true';
-        try { driver.startPressure(50, 50); } catch {}
-        try { driver.stopPressure(); } catch {}
-      }
-    );
-  });
+    beforeAll(() => {
+      previousSandboxMode = process.env.SIBYL_SANDBOX_MODE;
+      process.env.SIBYL_SANDBOX_MODE = 'true';
+    });
 
+    afterAll(() => {
+      if (previousSandboxMode === undefined) delete process.env.SIBYL_SANDBOX_MODE;
+      else process.env.SIBYL_SANDBOX_MODE = previousSandboxMode;
+    });
+
+    // Each scheduled PRESSURE fault records its start and, once its duration elapses, its end.
+    const pressureWorkload = async (driver: CpuFaultDriver | MemoryFaultDriver) => {
+      for (let i = 0; i < 3; i++) {
+        driver.applyScheduledFault();
+        await sleep(150); // longer than any generated durationMs
+      }
+    };
+
+    it('CPU Driver produces identical CapturedEvents', async () => {
+      await assertDeterminism(
+        CpuFaultDriver,
+        'CPU',
+        fc.array(CpuFaultSpecArb, { maxLength: 3 }),
+        pressureWorkload,
+        specs => specs.length * 2
+      );
+    });
+
+    it('Memory Driver produces identical CapturedEvents', async () => {
+      await assertDeterminism(
+        MemoryFaultDriver,
+        'MEMORY',
+        fc.array(MemoryFaultSpecArb, { maxLength: 3 }),
+        pressureWorkload,
+        specs => specs.length * 2
+      );
+    });
+  });
 });
