@@ -1,4 +1,0 @@
-refactor(dashboard): improve globals implementation
-
-Additional updates:
-- refactor(dashboard): improve page implementation
