@@ -77,10 +77,10 @@ they cannot drift from what it renders:
 
 | | |
 |---|---|
-| ![Runs](docs/screenshots/runs.png) | ![Run detail](docs/screenshots/run-detail.png) |
-| **Run explorer.** Every run from the API with its status and the promise it broke; the selected run's seed, replay command and the promise's own message. The header shows the API it is connected to. | **Run detail.** The concrete fault schedule the strategy chose, the captured event timeline with the injected fault named on each event, and the command to explain it. |
-| ![Trends](docs/screenshots/trends.png) | |
-| **Promise trends.** Each promise's fail rate per session. Pages without a backend are tagged *Preview* in the sidebar. | |
+| ![Landing Page](docs/screenshots/landing.png) | ![Runs](docs/screenshots/runs.png) |
+| **Landing page.** Foresight for production systems. | **Run explorer.** Every run from the API with its status and the promise it broke; the selected run's seed, replay command and the promise's own message. |
+| ![Run detail](docs/screenshots/run-detail.png) | ![Trends](docs/screenshots/trends.png) |
+| **Run detail.** The concrete fault schedule the strategy chose, the captured event timeline with the injected fault named on each event. | **Promise trends.** Each promise's fail rate per session. |
 
 ---
 

@@ -63,6 +63,11 @@ try {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
 
+  await page.goto('http://localhost:3100/', { waitUntil: 'domcontentloaded', timeout: 180_000 });
+  await page.waitForTimeout(6000);
+  await page.screenshot({ path: `${out}/landing.png`, fullPage: false });
+  log('landing page captured');
+
   await page.goto('http://localhost:3100/runs', { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForTimeout(8000);
   await page.screenshot({ path: `${out}/runs.png`, fullPage: false });
