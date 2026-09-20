@@ -1,7 +1,22 @@
 import { FaultDriver, DriverContext } from './driver';
 import { PRNG } from './prng';
-import { VirtualClock } from './clock';
-import { SimulationRun, FaultDomain, FaultSpec, CapturedEvent } from '@sibyl-shared';
+import { VirtualClock, ClockMode } from './clock';
+import { SimulationRun, FaultDomain, FaultSpec, CapturedEvent } from '@sibyl/shared';
+
+export interface EngineClockOptions {
+  mode: ClockMode;
+  skewMs?: number;
+  startTime?: number;
+}
+
+/**
+ * Should a schedule with this probability fire, given a roll in [0, 1)?
+ * Strictly less-than: probability 0 must never fire and probability 1 must always fire.
+ * The orchestrator's duplicate-schedule fingerprint uses the same rule, so keep them together.
+ */
+export function rollHits(roll: number, probability: number): boolean {
+  return roll < probability;
+}
 
 export class SimulationEngine {
   private masterRng: PRNG;
@@ -13,14 +28,26 @@ export class SimulationEngine {
   constructor(
     private runConfig: SimulationRun,
     private seed: string,
-    private clockOptions: { mode: 'realtime' | 'accelerated', skewMs?: number } = { mode: 'realtime' }
+    private clockOptions: EngineClockOptions = { mode: 'realtime' }
   ) {
     this.masterRng = new PRNG(this.seed);
     this.clock = new VirtualClock();
   }
 
-  // Instead of installing drivers locally, Orchestrator handles it.
-  // We keep this for backwards compatibility with single-run mode.
+  getClock(): VirtualClock {
+    return this.clock;
+  }
+
+  getPrng(): PRNG {
+    return this.masterRng;
+  }
+
+  getSeed(): string {
+    return this.seed;
+  }
+
+  // The orchestrator installs drivers once, globally, and routes them here through AsyncLocalStorage.
+  // This is kept for single-run use without an orchestrator.
   installDriver(driver: FaultDriver) {
     if (this.drivers.has(driver.domain)) {
       console.warn(`Driver for domain ${driver.domain} is already installed.`);
@@ -43,20 +70,15 @@ export class SimulationEngine {
   }
 
   evaluateFaultDecision(domain: FaultDomain, targetMetadata: Record<string, any>): FaultSpec | null {
-    // Fork a deterministic PRNG for this specific domain if not cached
-    // To maintain strict sequence, we should cache domain RNGs inside Engine.
-    if (!this.domainRngs) {
-      this.domainRngs = new Map();
-    }
+    // One PRNG stream per domain, cached, so the sequence of decisions in one domain does not
+    // depend on how many decisions were made in another.
     let domainRng = this.domainRngs.get(domain);
     if (!domainRng) {
       domainRng = this.masterRng.fork(domain);
       this.domainRngs.set(domain, domainRng);
     }
 
-    const domainSchedules = this.runConfig.schedules.filter(
-      s => s.spec.domain === domain
-    );
+    const domainSchedules = this.runConfig.schedules.filter(s => s.spec.domain === domain);
 
     for (const schedule of domainSchedules) {
       const now = this.clock.getVirtualTime();
@@ -66,7 +88,7 @@ export class SimulationEngine {
       let match = true;
       if (schedule.target) {
         for (const [key, value] of Object.entries(schedule.target)) {
-          if (targetMetadata[key] !== value) {
+          if (targetMetadata?.[key] !== value) {
             match = false;
             break;
           }
@@ -75,11 +97,11 @@ export class SimulationEngine {
       if (!match) continue;
 
       const roll = domainRng.next();
-      if (roll <= schedule.probability) {
+      if (rollHits(roll, schedule.probability)) {
         return schedule.spec;
       }
     }
-    
+
     return null;
   }
 
@@ -92,7 +114,15 @@ export class SimulationEngine {
   }
 
   start() {
-    this.clock.install({ mode: this.clockOptions.mode as any });
+    const mode = this.clockOptions.mode;
+    this.clock.install({
+      mode,
+      skewMs: this.clockOptions.skewMs,
+      startTime: this.clockOptions.startTime,
+      // Under an orchestrator nobody steps the clock by hand, so accelerated time must move itself.
+      autoAdvance: mode === 'accelerated',
+    });
+    this.applyClockSchedules();
   }
 
   stop() {
@@ -105,5 +135,25 @@ export class SimulationEngine {
 
   getEvents() {
     return this.events;
+  }
+
+  /**
+   * CLOCK faults have no I/O call to intercept, so they are decided once when the run starts:
+   * each matching CLOCK schedule rolls, and a hit skews or jumps this run's clock.
+   */
+  private applyClockSchedules() {
+    const hasClockSchedules = this.runConfig.schedules.some(s => s.spec.domain === 'CLOCK');
+    if (!hasClockSchedules) return;
+
+    const before = this.clock.getVirtualTime();
+    const fault = this.evaluateFaultDecision('CLOCK', { phase: 'start' });
+    if (!fault || fault.domain !== 'CLOCK') return;
+
+    const offsetMs = fault.offsetMs ?? 0;
+    this.clock.applyFault({ type: fault.type, offsetMs });
+    this.recordEvent({
+      domain: 'CLOCK',
+      payload: { originalTime: before, skewedTime: this.clock.getVirtualTime() },
+    } as any);
   }
 }
