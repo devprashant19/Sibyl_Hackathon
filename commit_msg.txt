@@ -1,4 +1,0 @@
-test: add Playwright E2E testing infrastructure for full user journeys
-
-Additional updates:
-- fix(api): fix apollo server version and add missing dependencies
