@@ -11,5 +11,8 @@
   "dependencies": {
     "@sibyl-shared": "workspace:*"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@sibyl-fault-drivers/mq": "workspace:*",
+    "kafkajs": "^2.2.4"
+  }
 }

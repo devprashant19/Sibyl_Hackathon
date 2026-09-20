@@ -102,6 +102,7 @@ export const MessageQueueFaultSpecSchema = z.object({
 export const GrpcFaultSpecSchema = z.object({
   domain: z.literal('GRPC'),
   type: GrpcFaultTypeSchema,
+  delayMs: z.number().optional(),
 });
 
 export const FilesystemFaultSpecSchema = z.object({

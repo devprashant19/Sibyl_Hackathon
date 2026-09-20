@@ -8,6 +8,9 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@sibyl-core": "workspace:*",
+    "@sibyl-shared": "workspace:*"
+  },
   "devDependencies": {}
 }
