@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { SearchOrchestrator } from '../src/orchestrator';
-import { Ucb1SearchStrategy } from '../src/search/ucb1';
-import { MctsSearchStrategy } from '../src/search/mcts';
-import { BayesianSearchStrategy } from '../src/search/bayesian';
-import { ProgrammaticPromise, createPromiseContext } from '../src/promise';
-import { FaultScheduleTemplate } from '@sibyl/shared';
-import { AsyncContext } from '../src/async-context';
+import {
+  AsyncContext,
+  BayesianSearchStrategy,
+  MctsSearchStrategy,
+  SearchOrchestrator,
+  type PromiseContext,
+  type ProgrammaticPromise,
+} from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
 describe('Search Strategy Benchmarks', () => {
 
@@ -18,9 +20,9 @@ describe('Search Strategy Benchmarks', () => {
     const fC = engine?.evaluateFaultDecision('MESSAGE_QUEUE', { target: 'C' });
 
     if (fA?.type === 'TIMEOUT' && fB?.type === 'DEADLOCK' && fC?.type === 'MESSAGE_LOSS') {
-      engine?.recordEvent({ domain: 'HTTP', payload: { status: 'BUG_TRIGGERED' } });
+      engine?.recordEvent({ domain: 'HTTP', payload: { method: 'POST', url: '/combinatorial', statusCode: 500, durationMs: 0 } });
     } else {
-      engine?.recordEvent({ domain: 'HTTP', payload: { status: 'OK' } });
+      engine?.recordEvent({ domain: 'HTTP', payload: { method: 'POST', url: '/combinatorial', statusCode: 200, durationMs: 0 } });
     }
   }
 
@@ -29,15 +31,15 @@ describe('Search Strategy Benchmarks', () => {
       id: 'no-bug',
       description: 'System should not trigger the combinatorial bug',
       severity: 'CRITICAL',
-      evaluate: (ctx) => !ctx.timeline().some(e => e.payload.status === 'BUG_TRIGGERED')
+      evaluate: (ctx) => !(ctx as PromiseContext).timeline().some(e => e.domain === 'HTTP' && e.payload.statusCode === 500)
     };
 
     const templates: FaultScheduleTemplate[] = [
-      { id: 't1', spec: { domain: 'HTTP', type: 'TIMEOUT' }, probabilityRange: [0, 1], target: { target: 'A' } },
-      { id: 't2', spec: { domain: 'DATABASE', type: 'DEADLOCK' }, probabilityRange: [0, 1], target: { target: 'B' } },
-      { id: 't3', spec: { domain: 'MESSAGE_QUEUE', type: 'MESSAGE_LOSS' }, probabilityRange: [0, 1], target: { target: 'C' } },
-      { id: 't4', spec: { domain: 'HTTP', type: 'HTTP_5XX' }, probabilityRange: [0, 1] }, // Noise
-      { id: 't5', spec: { domain: 'DATABASE', type: 'SLOW_QUERY' }, probabilityRange: [0, 1] }, // Noise
+      { id: '00000000-0000-4000-8000-000000000001', spec: { domain: 'HTTP', type: 'TIMEOUT' }, probabilityRange: [0, 1], target: { target: 'A' } },
+      { id: '00000000-0000-4000-8000-000000000002', spec: { domain: 'DATABASE', type: 'DEADLOCK' }, probabilityRange: [0, 1], target: { target: 'B' } },
+      { id: '00000000-0000-4000-8000-000000000003', spec: { domain: 'MESSAGE_QUEUE', type: 'MESSAGE_LOSS' }, probabilityRange: [0, 1], target: { target: 'C' } },
+      { id: '00000000-0000-4000-8000-000000000004', spec: { domain: 'HTTP', type: 'HTTP_5XX' }, probabilityRange: [0, 1] }, // Noise
+      { id: '00000000-0000-4000-8000-000000000005', spec: { domain: 'DATABASE', type: 'SLOW_QUERY' }, probabilityRange: [0, 1] }, // Noise
     ];
 
     const orchestrator = new SearchOrchestrator({
@@ -64,9 +66,9 @@ describe('Search Strategy Benchmarks', () => {
     const f = engine?.evaluateFaultDecision('DATABASE', { query: 'SELECT balance' });
     
     if (f?.type === 'SLOW_QUERY' && f.delayMs !== undefined && f.delayMs >= 330 && f.delayMs <= 340) {
-      engine?.recordEvent({ domain: 'DATABASE', payload: { race: 'TRIGGERED' } });
+      engine?.recordEvent({ domain: 'DATABASE', payload: { query: 'SELECT balance -- race triggered', durationMs: f.delayMs } });
     } else {
-      engine?.recordEvent({ domain: 'DATABASE', payload: { race: 'SAFE' } });
+      engine?.recordEvent({ domain: 'DATABASE', payload: { query: 'SELECT balance', durationMs: (f?.type === 'SLOW_QUERY' ? f.delayMs : undefined) ?? 0 } });
     }
   }
 
@@ -75,11 +77,11 @@ describe('Search Strategy Benchmarks', () => {
       id: 'safe-race',
       description: 'System should not trigger race condition',
       severity: 'CRITICAL',
-      evaluate: (ctx) => !ctx.timeline().some(e => e.payload.race === 'TRIGGERED')
+      evaluate: (ctx) => !(ctx as PromiseContext).timeline().some(e => e.domain === 'DATABASE' && e.payload.query.includes('race triggered'))
     };
 
     const templates: FaultScheduleTemplate[] = [
-      { id: 't1', spec: { domain: 'DATABASE', type: 'SLOW_QUERY' }, delayMsRange: [100, 500] }
+      { id: '00000000-0000-4000-8000-000000000001', spec: { domain: 'DATABASE', type: 'SLOW_QUERY' }, delayMsRange: [100, 500] }
     ];
 
     const orchestrator = new SearchOrchestrator({

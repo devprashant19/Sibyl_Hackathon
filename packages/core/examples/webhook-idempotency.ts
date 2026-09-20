@@ -1,117 +1,124 @@
-import { Kafka } from 'kafkajs';
+import {
+  SearchOrchestrator,
+  type DriverContext,
+  type FaultDriver,
+  type ProgrammaticPromise,
+} from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
-class MockMqFaultDriver {
-  install(context: any) {}
-  wrapKafka(kafka: any) { return kafka; }
-}
-import { DriverContext } from '../src/driver';
-import { VirtualClock } from '../src/clock';
+/**
+ * A non-idempotent webhook consumer, found by fault injection.
+ *
+ *   cd packages/core && npx tsx examples/webhook-idempotency.ts
+ *
+ * An in-memory broker stands in for Kafka. A fault driver wraps its `publish`: when the search
+ * schedules MESSAGE_QUEUE/MESSAGE_DUPLICATE for the topic, the message is delivered twice (as
+ * at-least-once brokers do after a lost acknowledgement). The consumer adds the payment on every
+ * delivery, so a duplicate double-credits the user. Exits 1 when the promise is broken.
+ */
 
-// Mock DB
-const db = {
-  users: [{ id: 'u1', balance: 100 }],
-  updateBalance: async (id: string, amount: number) => {
-    const user = db.users.find(u => u.id === id);
-    if (user) user.balance += amount;
+type Handler = (message: { key: string; value: string }) => Promise<void>;
+
+class InMemoryBroker {
+  private handlers = new Map<string, Handler[]>();
+
+  subscribe(topic: string, handler: Handler) {
+    this.handlers.set(topic, [...(this.handlers.get(topic) ?? []), handler]);
   }
+
+  async publish(topic: string, message: { key: string; value: string }) {
+    for (const handler of this.handlers.get(topic) ?? []) await handler(message);
+  }
+}
+
+/** Wraps a broker's publish so the search can duplicate deliveries. */
+class BrokerFaultDriver implements FaultDriver {
+  readonly domain = 'MESSAGE_QUEUE' as const;
+  private originalPublish?: InMemoryBroker['publish'];
+
+  constructor(private broker: InMemoryBroker) {}
+
+  install(ctx: DriverContext) {
+    const original = this.broker.publish.bind(this.broker);
+    this.originalPublish = this.broker.publish;
+    this.broker.publish = async (topic, message) => {
+      const fault = ctx.getFaultDecision('MESSAGE_QUEUE', { topic });
+      ctx.recordEvent({
+        domain: 'MESSAGE_QUEUE',
+        fault: fault?.type,
+        payload: { topic, messageId: message.key },
+      });
+      await original(topic, message);
+      if (fault?.type === 'MESSAGE_DUPLICATE') await original(topic, message);
+    };
+  }
+
+  uninstall() {
+    if (this.originalPublish) this.broker.publish = this.originalPublish;
+  }
+}
+
+// --- The application ---------------------------------------------------------------------------
+
+const db = { balance: 100 };
+const broker = new InMemoryBroker();
+
+broker.subscribe('stripe-webhooks', async message => {
+  const payload = JSON.parse(message.value) as { userId: string; amount: number };
+  // BUG: does not record that event `message.key` was already applied.
+  db.balance += payload.amount;
+});
+
+// --- The search ------------------------------------------------------------------------------------
+
+const templates: FaultScheduleTemplate[] = [
+  {
+    id: '0d7f3c52-4b0e-4f7a-9a51-2f7c1b8e6d10',
+    spec: { domain: 'MESSAGE_QUEUE', type: 'MESSAGE_DUPLICATE' },
+    probabilityRange: [0, 1],
+    target: { topic: 'stripe-webhooks' },
+  },
+];
+
+const creditedOnce: ProgrammaticPromise = {
+  id: 'webhook-credited-once',
+  description: 'A $50 payment webhook credits the user exactly once',
+  severity: 'CRITICAL',
+  evaluate: () => ({ passed: db.balance === 150, message: `balance is $${db.balance}, expected $150` }),
 };
 
-async function runExample() {
-  console.log('Starting Webhook Idempotency Example...');
-  
-  // 1. Setup Fault Injection Driver
-  const clock = new VirtualClock();
-  clock.install({ mode: 'real-time' });
-
-  const mqDriver = new MockMqFaultDriver();
-  
-  // Hardcode a schedule for testing: 100% chance of duplicating the webhook message
-  const mockContext: DriverContext = {
-    clock,
-    getFaultDecision: (domain, metadata) => {
-      if (domain === 'MESSAGE_QUEUE' && metadata.topic === 'stripe-webhooks') {
-        console.log(`[Sibyl Engine] Injecting MESSAGE_DUPLICATE for topic: ${metadata.topic}`);
-        return {
-          domain: 'MESSAGE_QUEUE',
-          type: 'MESSAGE_DUPLICATE',
-        };
-      }
-      return null;
+async function main() {
+  const orchestrator = new SearchOrchestrator({
+    workflow: async () => {
+      db.balance = 100;
+      await broker.publish('stripe-webhooks', {
+        key: 'evt_123',
+        value: JSON.stringify({ userId: 'u1', amount: 50 }),
+      });
     },
-    recordEvent: (event) => {
-      console.log(`[Sibyl Telemetry] Event recorded: ${JSON.stringify(event.payload)}`);
-    }
-  };
-  
-  mqDriver.install(mockContext);
-
-  // 2. Wrap Kafka Client
-  const rawKafka = new Kafka({
-    clientId: 'example-app',
-    brokers: ['localhost:9092']
+    templates,
+    promises: [creditedOnce],
+    iterations: 20,
+    earlyExit: true,
+    seed: 'webhook-idempotency-example',
   });
-  
-  const kafka = mqDriver.wrapKafka(rawKafka);
+  orchestrator.registerDriver(new BrokerFaultDriver(broker));
 
-  // 3. User's Producer
-  const producer = kafka.producer();
-  
-  // Mock producer behavior since we don't have a real Kafka broker running for this script
-  producer.send = async (record: any) => {
-    console.log(`[Producer] Sending webhook for $50 to ${record.topic}`);
-    return [{ topicName: record.topic, partition: 0, errorCode: 0, baseOffset: '0' }];
-  };
+  const result = await orchestrator.run();
+  console.log(`${result.totalRuns} runs, ${result.failures} failed (seed ${result.seed})`);
 
-  // 4. User's Consumer (Vulnerable to duplicates)
-  const consumer = kafka.consumer({ groupId: 'webhook-group' });
-  
-  // Mock consumer run
-  consumer.run = async (config: any) => {
-    const message = {
-      key: 'evt_123',
-      value: JSON.stringify({ userId: 'u1', amount: 50, type: 'payment_success' })
-    };
-    
-    // Simulate Kafka polling the broker and passing it to eachMessage
-    await config.eachMessage({
-      topic: 'stripe-webhooks',
-      partition: 0,
-      message
-    });
-  };
-
-  // User's Handler Logic (Non-idempotent)
-  await consumer.run({
-    eachMessage: async ({ message }: any) => {
-      const payload = JSON.parse(message.value.toString());
-      console.log(`[Consumer] Processing webhook: Add $${payload.amount} to ${payload.userId}`);
-      
-      // BUG: Doesn't check if evt_123 was already processed!
-      await db.updateBalance(payload.userId, payload.amount);
-    }
-  });
-
-  // Trigger the flow
-  await producer.send({
-    topic: 'stripe-webhooks',
-    messages: [{ key: 'evt_123', value: JSON.stringify({ userId: 'u1', amount: 50 }) }]
-  });
-
-  // Allow asynchronous events to settle
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  console.log('--- Results ---');
-  console.log(`Expected User Balance: $150 (Started with $100, Added $50)`);
-  console.log(`Actual User Balance:   $${db.users[0].balance}`);
-
-  // 5. Evaluate the "Promise"
-  const promisePassed = db.users[0].balance === 150;
-  if (!promisePassed) {
-    console.error(`[Sibyl Promise Failed] The system is vulnerable to double-spend on webhook duplication!`);
-    process.exit(1);
+  const worst = result.worstRun;
+  if (worst && !worst.passed) {
+    const broken = worst.promiseResults.find(r => !r.passed);
+    const faults = worst.events?.filter(e => e.fault).map(e => `${e.domain}/${e.fault}`).join(', ');
+    console.error(`[promise failed] ${broken?.promiseId}: ${broken?.message} (faults: ${faults || 'none'})`);
+    process.exitCode = 1;
   } else {
-    console.log(`[Sibyl Promise Passed] The system successfully handled the duplicate.`);
+    console.log('[promise held] no duplicate delivery broke the consumer');
   }
 }
 
-runExample().catch(console.error);
+main().catch(err => {
+  console.error(err);
+  process.exitCode = 1;
+});
