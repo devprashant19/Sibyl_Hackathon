@@ -1,0 +1,4 @@
+chore(shared): refactor package dependencies
+
+Additional updates:
+- refactor(shared): improve api-schemas implementation

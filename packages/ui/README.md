@@ -31,32 +31,38 @@ The design system is built around these core tokens:
 
 ## Components
 
-| Component | Description |
-|---|---|
-| `Button` | Primary, ghost, and outline button variants |
-| `Card` | Surface container with border and optional shadow |
-| `Badge` | Status indicator (pass/fail/info) |
-| `CodeBlock` | Syntax-highlighted code display |
-| `Input` | Form input with label and validation |
-| `Table` | Data table with sorting and pagination |
-| `Dialog` | Modal dialog |
-| `Toast` | Notification toast |
+| Component | Client-only? | Description |
+|---|---|---|
+| `Button` | no | `primary`, `secondary`, `outline`, `ghost` variants; defaults to `type="button"` |
+| `Card` (+ `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`) | no | Surface container |
+| `Badge` | no | Status pill (`default`, `pass`, `fail`, `outline`) |
+| `CodeBlock` | no | Monospace code display; optional `language` hint (no highlighting) |
+| `ProgressTrack` | no | Progress bar; `value` is clamped to 0..100 |
+| `Skeleton` | no | Loading placeholder |
+| `EmptyState` | no | Empty / error placeholder with optional action |
+| `ErrorBoundary` | yes (`"use client"`) | Class error boundary with retry |
+| `OracleConsole` | yes (`"use client"`) | Typing terminal animation; safe with an empty `scenarios` list |
+
+Components marked client-only carry `"use client"`, so the package index can be imported from
+Next.js server components. Consumers using Tailwind v4 must add `@source "<path-to>/ui/src";` to
+their CSS so classes used only inside these components are generated.
 
 ## Usage
 
 ```tsx
 import { Button, Card, Badge, CodeBlock } from '@sibyl/ui';
 
-<Card className="bg-ink-2 border-gold/20 p-6">
-  <Badge className="bg-gold/10 text-gold">PASS</Badge>
-  <h3>Run completed</h3>
-  <Button variant="primary">View Details</Button>
+<Card className="p-6">
+  <Badge variant="pass">PASS</Badge>
+  <CodeBlock code="sibyl replay <runId>" language="shell" />
+  <Button variant="outline">View Details</Button>
 </Card>
 ```
 
 ## Development
 
 ```bash
-pnpm build    # Compile TypeScript + bundle CSS
-pnpm dev      # Watch mode
+pnpm build    # tsc --build
+pnpm test     # vitest (node, static-markup rendering)
+pnpm lint     # eslint (flat config in eslint.config.mjs)
 ```

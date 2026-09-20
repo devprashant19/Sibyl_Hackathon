@@ -204,8 +204,10 @@ export const PromiseSchema = z.object({
 export type Promise = z.infer<typeof PromiseSchema>;
 
 export const PromiseResultSchema = z.object({
-  promiseId: z.string().uuid(),
-  simulationRunId: z.string().uuid(),
+  // Not uuids: promise ids are author-chosen slugs ('no-double-charges'), and session-scoped
+  // promises report against the literal run id 'SESSION'.
+  promiseId: z.string().min(1),
+  simulationRunId: z.string().min(1),
   passed: z.boolean(),
   severity: PromiseSeveritySchema,
   message: z.string().optional(), // For custom assertions
@@ -265,15 +267,15 @@ export const ResourceEventPayloadSchema = z.object({
 });
 
 export const CapturedEventSchema = z.discriminatedUnion('domain', [
-  z.object({ domain: z.literal('HTTP'), timestamp: z.number(), payload: HttpEventPayloadSchema }),
-  z.object({ domain: z.literal('DATABASE'), timestamp: z.number(), payload: DatabaseEventPayloadSchema }),
-  z.object({ domain: z.literal('MESSAGE_QUEUE'), timestamp: z.number(), payload: MessageQueueEventPayloadSchema }),
-  z.object({ domain: z.literal('GRPC'), timestamp: z.number(), payload: GrpcEventPayloadSchema }),
-  z.object({ domain: z.literal('FILESYSTEM'), timestamp: z.number(), payload: FilesystemEventPayloadSchema }),
-  z.object({ domain: z.literal('CLOCK'), timestamp: z.number(), payload: ClockEventPayloadSchema }),
-  z.object({ domain: z.literal('PROCESS'), timestamp: z.number(), payload: ProcessEventPayloadSchema }),
-  z.object({ domain: z.literal('MEMORY'), timestamp: z.number(), payload: ResourceEventPayloadSchema }),
-  z.object({ domain: z.literal('CPU'), timestamp: z.number(), payload: ResourceEventPayloadSchema }),
+  z.object({ domain: z.literal('HTTP'), id: z.string().optional(), timestamp: z.number(), payload: HttpEventPayloadSchema }),
+  z.object({ domain: z.literal('DATABASE'), id: z.string().optional(), timestamp: z.number(), payload: DatabaseEventPayloadSchema }),
+  z.object({ domain: z.literal('MESSAGE_QUEUE'), id: z.string().optional(), timestamp: z.number(), payload: MessageQueueEventPayloadSchema }),
+  z.object({ domain: z.literal('GRPC'), id: z.string().optional(), timestamp: z.number(), payload: GrpcEventPayloadSchema }),
+  z.object({ domain: z.literal('FILESYSTEM'), id: z.string().optional(), timestamp: z.number(), payload: FilesystemEventPayloadSchema }),
+  z.object({ domain: z.literal('CLOCK'), id: z.string().optional(), timestamp: z.number(), payload: ClockEventPayloadSchema }),
+  z.object({ domain: z.literal('PROCESS'), id: z.string().optional(), timestamp: z.number(), payload: ProcessEventPayloadSchema }),
+  z.object({ domain: z.literal('MEMORY'), id: z.string().optional(), timestamp: z.number(), payload: ResourceEventPayloadSchema }),
+  z.object({ domain: z.literal('CPU'), id: z.string().optional(), timestamp: z.number(), payload: ResourceEventPayloadSchema }),
 ]);
 
 export type CapturedEvent = z.infer<typeof CapturedEventSchema>;
