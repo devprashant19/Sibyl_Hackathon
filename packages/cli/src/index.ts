@@ -1,536 +1,511 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
 import cliProgress from 'cli-progress';
-import { execSync } from 'child_process';
-import { handleError, ConfigLoadError, ApiKeyError, NetworkError, SDKMismatchError } from './errors';
-// Need dynamic import for the user's config
-// import { SearchOrchestrator } from '@sibyl/core'; // Stub
-import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer, BudgetExceededError, ClaudeUnavailableError } from '@sibyl/agent';
+import { execFileSync } from 'child_process';
+import type { RunRecordPayload, Session } from '@sibyl/shared';
+import { handleError, ConfigLoadError, ApiKeyError, NetworkError } from './errors';
+import { loadConfig } from './config';
+import { runSession, replayRun, RunOptions, STRATEGIES } from './session';
+import { LocalSessionStore } from './storage';
+import { ApiClient } from './api-client';
+import { toJUnit } from './junit';
+import { CONFIG_TEMPLATE } from './template';
 
-const program = new Command();
+export const VERSION = '0.1.0';
 
-program
-  .name('sibyl')
-  .description('Sibyl Simulation & Fault Injection Engine')
-  .version('1.0.0');
+const DEFAULT_CONFIG = 'sibyl.config.ts';
 
-  .version('1.0.0');
+/** Where local sessions live: next to the config file. */
+const storeFor = (configPath: string) => new LocalSessionStore(path.dirname(path.resolve(configPath)));
 
-// --- DOCTOR COMMAND ---
-program
-  .command('doctor')
-  .description('Diagnoses your Sibyl setup (config, API keys, SDK versions, Docker)')
-  .action(async () => {
-    console.log(chalk.blue.bold(`\n🩺 Sibyl Setup Doctor`));
-    
-    let allPassed = true;
-    const printStatus = (name: string, passed: boolean, info?: string) => {
-      const status = passed ? chalk.green('PASS') : chalk.red('FAIL');
-      console.log(`[${status}] ${chalk.white.bold(name)} ${info ? chalk.gray('(' + info + ')') : ''}`);
-      if (!passed) allPassed = false;
-    };
-
-    // 1. Config
-    const configPath = path.join(process.cwd(), 'sibyl.config.ts');
-    const hasConfig = fs.existsSync(configPath);
-    printStatus('Configuration File', hasConfig, hasConfig ? 'sibyl.config.ts found' : 'Not found');
-
-    // 2. API Key
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    let apiPassed = false;
-    let apiInfo = 'ANTHROPIC_API_KEY is missing';
-    if (apiKey) {
-      if (!apiKey.startsWith('sk-ant-')) {
-        apiInfo = 'Invalid key format';
-      } else {
-        try {
-          const res = await fetch('https://api.anthropic.com/v1/models', {
-            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
-          });
-          if (res.status === 401) {
-             apiInfo = 'API Key Unauthorized';
-          } else {
-             apiPassed = true;
-             apiInfo = 'Connected to Anthropic';
-          }
-        } catch(e: any) {
-          apiInfo = \`Network error: \${e.message}\`;
-        }
-      }
-    }
-    printStatus('Anthropic API Key', apiPassed, apiInfo);
-
-    // 3. SDK Version
-    let sdkPassed = false;
-    let sdkInfo = 'Cannot read package.json';
-    try {
-      const pkgPath = path.join(process.cwd(), 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        const cliVersion = require('../../package.json').version; // local package.json
-        const coreVersion = pkg.dependencies?.['@sibyl/core'] || pkg.devDependencies?.['@sibyl/core'];
-        if (!coreVersion) {
-          sdkInfo = '@sibyl/core not installed in project';
-        } else if (coreVersion.replace('^', '').replace('~', '') !== cliVersion) {
-          sdkInfo = \`Version mismatch (CLI: \${cliVersion}, Project: \${coreVersion})\`;
-        } else {
-          sdkPassed = true;
-          sdkInfo = \`Matched at \${cliVersion}\`;
-        }
-      } else {
-        sdkInfo = 'No package.json found';
-      }
-    } catch(e) {}
-    printStatus('SDK Version Match', sdkPassed, sdkInfo);
-
-    // 4. Docker
-    let dockerPassed = false;
-    let dockerInfo = '';
-    try {
-      execSync('docker info', { stdio: 'ignore' });
-      dockerPassed = true;
-      dockerInfo = 'Docker daemon is running';
-    } catch(e) {
-      dockerInfo = 'Docker not running or not installed';
-    }
-    printStatus('Docker Sandbox', dockerPassed, dockerInfo);
-
-    console.log();
-    if (allPassed) {
-      console.log(chalk.green.bold('✔ Your Sibyl environment is perfectly configured!'));
-    } else {
-      console.log(chalk.yellow.bold('⚠️  Some checks failed. See the tips below:'));
-      if (!hasConfig) console.log(chalk.gray('- Run `sibyl init` to generate a configuration file.'));
-      if (!apiPassed) console.log(chalk.gray('- Set a valid ANTHROPIC_API_KEY environment variable.'));
-      if (!sdkPassed) console.log(chalk.gray('- Ensure your project depends on the same version of @sibyl/core as this CLI.'));
-      if (!dockerPassed) console.log(chalk.gray('- Start your Docker daemon if you intend to use Sandbox isolated environments.'));
-      process.exit(1);
-    }
-  });
-
-// --- INIT COMMAND ---
-program
-  .command('init')
-  .description('Scaffolds a sibyl.config.ts in your repository')
-  .action(() => {
-    const configPath = path.join(process.cwd(), 'sibyl.config.ts');
-    if (fs.existsSync(configPath)) {
-      console.log(chalk.red('❌ sibyl.config.ts already exists.'));
-      process.exit(1);
-    }
-
-    const template = `import { ProgrammaticPromise, FaultScheduleTemplate } from '@sibyl/shared';
-
-export const promises: ProgrammaticPromise[] = [
-  {
-    id: 'no-500s',
-    description: 'System should not return 500 errors',
-    severity: 'CRITICAL',
-    evaluate: (ctx) => !ctx.timeline().some(e => e.payload.status === 500)
-  }
-];
-
-export const templates: FaultScheduleTemplate[] = [
-  {
-    id: 'http-timeout',
-    spec: { domain: 'HTTP', type: 'TIMEOUT' },
-    probabilityRange: [0.1, 1.0],
-    delayMsRange: [1000, 5000],
-    target: { url: 'api/checkout' }
-  }
-];
-
-export async function workflow() {
-  // TODO: Trigger your application's logic here
-  // e.g. await fetch('http://localhost:3000/api/checkout');
+function apiFromEnv(): ApiClient | undefined {
+  const url = process.env.SIBYL_API_URL;
+  return url ? new ApiClient(url, process.env.SIBYL_API_TOKEN) : undefined;
 }
-`;
-    fs.writeFileSync(configPath, template);
-    console.log(chalk.green('✔ Scaffolding complete!'));
-    console.log(chalk.cyan('Created: ') + 'sibyl.config.ts');
-    console.log(chalk.gray('\nNext steps:'));
-    console.log(chalk.gray('  1. Wire up your target application logic in the workflow() function.'));
-    console.log(chalk.gray('  2. Run `sibyl run` to start the simulation engine.'));
-  });
 
-// --- RUN COMMAND ---
-program
-  .command('run')
-  .description('Runs the search engine against the target workflow')
-  .option('--target <script>', 'Path to the sibyl config', 'sibyl.config.ts')
-  .option('--iterations <number>', 'Number of simulation runs', '100')
-  .option('--concurrency <number>', 'Parallel execution limit', '1')
-  .option('--local-only', 'Do not upload results to the API')
-  .option('-u, --update-snapshots', 'Update stored snapshot golden files')
-  .option('--suggest-fix <filepaths...>', 'Files to analyze for suggested patches')
-  .action(async (options) => {
+function parsePositiveInt(name: string) {
+  return (value: string) => {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1) throw new Error(`--${name} must be a positive integer, got "${value}"`);
+    return n;
+  };
+}
+
+/** AI-agent errors that mean "not available right now" rather than "Sibyl is broken". */
+function isAgentUnavailable(err: any): boolean {
+  return ['BudgetExceededError', 'ClaudeUnavailableError', 'AIDisabledError', 'BudgetStoreCorruptError', 'ClaudeResponseError', 'AgentTurnLimitError']
+    .includes(err?.name);
+}
+
+function statusColor(status: string) {
+  switch (status) {
+    case 'COMPLETED': return chalk.green(status);
+    case 'FAILED': return chalk.red(status);
+    case 'INTERMITTENT': return chalk.yellow(status);
+    default: return chalk.magenta(status);
+  }
+}
+
+function describeSchedule(run: Pick<RunRecordPayload, 'concreteSchedules'>): string {
+  if (run.concreteSchedules.length === 0) return 'no faults';
+  return run.concreteSchedules.map(s => {
+    const spec: any = s.spec;
+    const extra = spec.delayMs !== undefined ? ` ${spec.delayMs}ms` : spec.offsetMs !== undefined ? ` ${spec.offsetMs}ms` : '';
+    return `${spec.domain}/${spec.type}${extra} @p=${Number(s.probability.toFixed(3))}`;
+  }).join(', ');
+}
+
+function printSummary(session: Session, file: string) {
+  const s = session.summary;
+  const line = [
+    `${s.totalRuns} runs`,
+    s.failures ? chalk.red(`${s.failures} failed`) : chalk.green('0 failed'),
+    s.intermittent ? chalk.yellow(`${s.intermittent} intermittent`) : null,
+    s.errored ? chalk.magenta(`${s.errored} errored`) : null,
+    `${((session.completedAt - session.startedAt) / 1000).toFixed(1)}s`,
+  ].filter(Boolean).join(chalk.gray(' · '));
+  console.log(`\n${chalk.bold('Result')}  ${line}`);
+  console.log(chalk.gray(`Seed ${session.seed} · strategy ${session.strategy} · saved ${path.relative(process.cwd(), file) || file}`));
+
+  if (s.totalRuns < session.iterations) {
+    console.log(chalk.gray(`Stopped after ${s.totalRuns} of ${session.iterations} runs: --early-exit hit a failure, or the strategy kept proposing schedules it had already tried.`));
+  }
+
+  const notPassing = session.runs.filter(r => !r.passed);
+  if (notPassing.length === 0) return;
+
+  // Show the smallest failing schedules first: they are the easiest to reason about.
+  const shown = [...notPassing].sort((a, b) => a.concreteSchedules.length - b.concreteSchedules.length).slice(0, 5);
+  console.log(`\n${chalk.bold('Runs that did not pass')}${notPassing.length > shown.length ? chalk.gray(` (showing ${shown.length} of ${notPassing.length})`) : ''}`);
+  for (const run of shown) {
+    console.log(`  ${statusColor(run.status)} ${chalk.white(run.runId.slice(0, 8))}  ${chalk.gray(describeSchedule(run))}`);
+    for (const p of run.promiseResults.filter(p => !p.passed)) {
+      console.log(`    ${chalk.red('✗')} ${p.promiseId}${p.message ? chalk.gray(` — ${p.message}`) : ''}`);
+    }
+    if (run.error) console.log(`    ${chalk.magenta('!')} ${run.error}`);
+  }
+  console.log(chalk.cyan(`\nReproduce: sibyl replay ${shown[0].runId.slice(0, 8)}`));
+}
+
+async function executeSession(options: any, source: 'cli' | 'ci') {
+  const loaded = await loadConfig(options.config);
+  const api = options.upload === false ? undefined : apiFromEnv();
+  const interactive = source === 'cli' && process.stdout.isTTY;
+  const total = options.iterations ?? loaded.config.iterations ?? 100;
+
+  console.log(chalk.bold(`\nSibyl ${VERSION}`) + chalk.gray(` · ${loaded.project} · ${path.relative(process.cwd(), loaded.path) || loaded.path}`));
+
+  const bar = interactive
+    ? new cliProgress.SingleBar({
+        format: `${chalk.cyan('{bar}')} {value}/{total} runs | {failures} failed`,
+        barCompleteChar: '█', barIncompleteChar: '░', hideCursor: true,
+      })
+    : undefined;
+  bar?.start(total, 0, { failures: 0 });
+  let lastLogged = 0;
+
+  const runOptions: RunOptions = {
+    iterations: options.iterations,
+    concurrency: options.concurrency,
+    seed: options.seed,
+    strategy: options.strategy,
+    clock: options.clock,
+    earlyExit: options.earlyExit,
+    runTimeoutMs: options.timeout,
+    updateSnapshots: options.updateSnapshots,
+    source,
+    onRun: (_run, progress, sessionId) => {
+      bar?.update(progress.done, { failures: progress.failures });
+      if (!bar && (progress.done - lastLogged >= Math.max(1, Math.floor(total / 10)) || progress.done === total)) {
+        lastLogged = progress.done;
+        console.log(`[sibyl] ${progress.done}/${total} runs, ${progress.failures} failed`);
+      }
+      api?.reportProgress({ type: 'progress', sessionId, project: loaded.project, ...progress, lastRun: { runId: _run.runId, status: _run.status } });
+    },
+  };
+
+  let session: Session;
+  try {
+    ({ session } = await runSession(loaded, runOptions));
+  } finally {
+    bar?.stop();
+    api?.flushProgress();
+  }
+
+  const file = storeFor(options.config).save(session);
+  printSummary(session, file);
+
+  if (options.junit) {
+    fs.mkdirSync(path.dirname(path.resolve(options.junit)), { recursive: true });
+    fs.writeFileSync(options.junit, toJUnit(session));
+    console.log(chalk.gray(`JUnit report written to ${options.junit}`));
+  }
+
+  if (api) {
     try {
-      console.log(chalk.blue.bold(`\n👁️  Sibyl Engine Started`));
-      console.log(chalk.gray(`Target: ${options.target} | Iterations: ${options.iterations}`));
-      
-      const configPath = path.resolve(options.target);
-      if (!fs.existsSync(configPath)) {
-        throw new ConfigLoadError(\`Configuration file not found at \${options.target}\`, options.target);
+      await api.createSession(session);
+      console.log(chalk.gray(`Uploaded to ${process.env.SIBYL_API_URL} (session ${session.id})`));
+    } catch (err: any) {
+      // The session is safe on disk; an unreachable API is worth saying, not worth failing over.
+      console.log(chalk.yellow(`Upload failed: ${err.message}`));
+      if (options.requireUpload) throw new NetworkError(`Upload required but failed: ${err.message}`);
+    }
+  }
+  return session;
+}
+
+function findStoredRun(runId: string, configPath: string) {
+  const local = storeFor(configPath).findRun(runId);
+  if (local) return { run: local.run, session: local.session, source: 'local' as const };
+  return undefined;
+}
+
+async function resolveRun(runId: string, configPath: string): Promise<{ run: RunRecordPayload; project: string; promises: Session['promises'] }> {
+  const local = findStoredRun(runId, configPath);
+  if (local) return { run: local.run, project: local.session.project, promises: local.session.promises };
+  const api = apiFromEnv();
+  const remote = api ? await api.getRun(runId) : undefined;
+  if (remote) return { run: remote, project: remote.project, promises: remote.promises };
+  const where = api ? `in ${storeFor(configPath).dir} or at ${process.env.SIBYL_API_URL}` : `in ${storeFor(configPath).dir} (set SIBYL_API_URL to also search the API)`;
+  throw new Error(`No run ${runId} found ${where}.`);
+}
+
+export function buildProgram(): Command {
+  const program = new Command();
+  program
+    .name('sibyl')
+    .description('Deterministic fault-injection search for the bugs that only happen when things go wrong')
+    .version(VERSION);
+
+  // --- INIT ---
+  program
+    .command('init')
+    .description('Create a sibyl.config.ts you can run straight away')
+    .option('--force', 'Overwrite an existing config')
+    .action(async (options) => {
+      try {
+        const target = path.join(process.cwd(), DEFAULT_CONFIG);
+        if (fs.existsSync(target) && !options.force) {
+          throw new ConfigLoadError(`${DEFAULT_CONFIG} already exists. Use --force to overwrite it.`, target);
+        }
+        fs.writeFileSync(target, CONFIG_TEMPLATE);
+        console.log(chalk.green(`✔ Created ${DEFAULT_CONFIG}`));
+        console.log(chalk.gray('  Replace the example workflow with a call into your own code, then run `sibyl run`.'));
+      } catch (err) {
+        handleError(err);
       }
-      
-      // In a real app we'd dynamically import:
-      // const { workflow, templates, promises } = await import(configPath);
-      // const orchestrator = new SearchOrchestrator({ 
-      //   ...config, 
-      //   iterations: parseInt(options.iterations), 
-      //   updateSnapshots: options.updateSnapshots 
-      // });
+    });
 
-      const bar = new cliProgress.SingleBar({
-        format: chalk.cyan('{bar}') + ' {percentage}% | {value}/{total} Runs | {failures} Failures',
-        barCompleteChar: '\u2588',
-        barIncompleteChar: '\u2591',
-        hideCursor: true
-      });
+  const addRunOptions = (cmd: Command) => cmd
+    .option('-c, --config <file>', 'Path to the Sibyl config', DEFAULT_CONFIG)
+    .option('-n, --iterations <number>', 'Number of runs (default: config, else 100)', parsePositiveInt('iterations'))
+    .option('--concurrency <number>', 'Runs executed in parallel', parsePositiveInt('concurrency'))
+    .option('-s, --seed <seed>', 'Master seed; the same seed and config reproduce the session')
+    .addOption(new Option('--strategy <name>', 'Search strategy').choices(STRATEGIES))
+    .addOption(new Option('--clock <mode>', 'realtime, or accelerated to make timers fire instantly').choices(['realtime', 'accelerated']))
+    .option('--timeout <ms>', 'Per-run timeout in milliseconds', parsePositiveInt('timeout'))
+    .option('--early-exit', 'Stop at the first failing run')
+    .option('--junit <file>', 'Write a JUnit XML report')
+    .option('--no-upload', 'Do not upload to SIBYL_API_URL even if it is set')
+    .option('-u, --update-snapshots', 'Update stored snapshot golden files');
 
-      bar.start(parseInt(options.iterations), 0, { failures: 0 });
-
-      let failures = 0;
-      for (let i = 1; i <= parseInt(options.iterations); i++) {
-        // Stub execution wait
-        await new Promise(r => setTimeout(r, 20)); 
-        if (i % 25 === 0) failures++; // Mock failure discovery
-        
-        bar.update(i, { failures });
+  // --- RUN ---
+  addRunOptions(program.command('run'))
+    .description('Search for fault schedules that break your promises')
+    .action(async (options) => {
+      try {
+        await executeSession(options, 'cli');
+      } catch (err) {
+        handleError(err);
       }
-      
-      bar.stop();
+    });
 
-      if (failures > 0) {
-        console.log(chalk.red.bold(`\n❌ Found ${failures} failing permutations.`));
-        
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (apiKey) {
-          console.log(chalk.magenta('\n🤖 Auto-analyzing root cause for the first failure...'));
-          const explainer = new SibylExplainer({ apiKey });
-          // Mock telemetry for the CLI
-          const mockEvents = [{ type: 'HTTP_REQUEST', target: 'api.stripe.com', status: 'TIMEOUT' }];
-          const mockEvidence = { promiseName: 'no_500s', state: 'FAILED' };
-          
-          let explanation = null;
-          try {
-            explanation = await explainer.explainFailure('mock-run-id', mockEvents, mockEvidence);
-          } catch(e: any) {
-            if (e instanceof BudgetExceededError || e instanceof ClaudeUnavailableError || e.name === 'BudgetExceededError' || e.name === 'ClaudeUnavailableError') {
-              console.log(chalk.yellow(`\n⚠️  AI explanation unavailable: ${e.message}`));
-              console.log(chalk.gray('Displaying raw captured evidence instead:'));
-              console.log(chalk.white(JSON.stringify({ mockEvents, mockEvidence }, null, 2)));
-            } else {
-              throw new ApiKeyError(`Agent explanation failed: ${e.message}`);
-            }
+  // --- CI ---
+  addRunOptions(program.command('ci'))
+    .description('Like run, without interactive output; exits 1 if any run failed or errored')
+    .option('--require-upload', 'Fail if the upload to SIBYL_API_URL fails')
+    .option('--allow-intermittent', 'Do not fail the build for intermittent (flaky) runs')
+    .action(async (options) => {
+      try {
+        const session = await executeSession(options, 'ci');
+        const s = session.summary;
+        const bad = s.failures + s.errored + (options.allowIntermittent ? 0 : s.intermittent);
+        if (bad > 0) {
+          console.error(`[sibyl] ${bad} run(s) did not pass. Failing the build.`);
+          process.exit(1);
+        }
+        console.log('[sibyl] All runs passed.');
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  // --- REPLAY ---
+  program
+    .command('replay <runId>')
+    .description('Re-execute one run with its original seed and schedule, and check it reproduces')
+    .option('-c, --config <file>', 'Path to the Sibyl config', DEFAULT_CONFIG)
+    .option('--events', 'Print the replayed event timeline')
+    .action(async (runId, options) => {
+      try {
+        const loaded = await loadConfig(options.config);
+        const { run } = await resolveRun(runId, options.config);
+        console.log(chalk.bold(`\nReplaying ${run.runId}`));
+        console.log(chalk.gray(`Seed ${run.seed} · ${describeSchedule(run)} · originally ${run.status}`));
+
+        const { replayed, statusMatches, timelineMatches } = await replayRun(loaded, run);
+
+        console.log(`\nStatus    ${statusColor(replayed.status)}`);
+        for (const p of replayed.promiseResults) {
+          console.log(`  ${p.passed ? chalk.green('✓') : chalk.red('✗')} ${p.promiseId}${p.message ? chalk.gray(` — ${p.message}`) : ''}`);
+        }
+        if (options.events) {
+          for (const e of replayed.events ?? []) {
+            console.log(chalk.gray(`  ${new Date(e.timestamp).toISOString()} ${e.domain} ${JSON.stringify(e.payload)}`));
           }
-          
-          if (explanation) {
-            console.log(chalk.gray('--- AI Root Cause Analysis ---'));
-            console.log(chalk.white(explanation));
-            console.log(chalk.gray('------------------------------'));
-          }
+        }
 
-          if (options.suggestFix && options.suggestFix.length > 0 && explanation) {
-            console.log(chalk.magenta('\n🛠️  Generating suggested patch...'));
-            const patcher = new SibylPatcher({ apiKey });
-            
-            // Read requested files
-            const fileContents: Record<string, string> = {};
-            for (const fp of options.suggestFix) {
-              if (fs.existsSync(fp)) {
-                fileContents[fp] = fs.readFileSync(fp, 'utf-8');
-              } else {
-                console.log(chalk.yellow(`Warning: Could not read file ${fp}`));
-              }
-            }
-
-            if (Object.keys(fileContents).length > 0) {
-              try {
-                const patchResult = await patcher.suggestFix(explanation, fileContents);
-                
-                const handoffDoc = `# Sibyl AI Handoff
-> Note: Pass this document to your IDE agent (Cursor, Claude Code, Copilot) to automatically apply the fix.
-
-## Prompt for Agent
-Please apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.
-**Explanation of fix:** ${patchResult.explanation}
-
-## Patch
-\`\`\`diff
-${patchResult.unifiedDiff}
-\`\`\`
-`;
-                const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
-                fs.writeFileSync(handoffPath, handoffDoc);
-                console.log(chalk.green(`✔ Handoff document generated: ${handoffPath}`));
-                console.log(chalk.cyan(`You can pass this file to Cursor/Claude Code to auto-apply the fix.`));
-              } catch (e: any) {
-                if (e instanceof BudgetExceededError || e instanceof ClaudeUnavailableError || e.name === 'BudgetExceededError' || e.name === 'ClaudeUnavailableError') {
-                  console.log(chalk.yellow(`\n⚠️  Patch generation unavailable: ${e.message}`));
-                } else {
-                  throw e;
-                }
-              }
-            }
-          }
+        // An intermittent run is expected to go either way on a single replay.
+        const intermittent = run.status === 'INTERMITTENT' && (replayed.status === 'FAILED' || replayed.status === 'COMPLETED');
+        if (statusMatches && timelineMatches !== false) {
+          console.log(chalk.green(`\n✔ Reproduced: same outcome${timelineMatches ? ' and same fault decisions' : ''}.`));
+        } else if (intermittent) {
+          console.log(chalk.yellow(`\n~ The original run was intermittent; this replay ${replayed.status === 'FAILED' ? 'failed' : 'passed'}.`));
         } else {
-          console.log(chalk.gray('Tip: Set ANTHROPIC_API_KEY to automatically diagnose failures.'));
+          const what = statusMatches
+            ? `same outcome (${run.status}), but the fault decisions differ`
+            : `originally ${run.status}, now ${replayed.status}`;
+          console.log(chalk.red(`\n✗ Did not reproduce: ${what}.`));
+          console.log(chalk.gray('  The workflow depends on something outside the seed (wall-clock timing, external state, Math.random).'));
+          process.exitCode = 1;
         }
-        
-      } else {
-        console.log(chalk.green.bold(`\n✔ 0 failures found. Code is robust.`));
+      } catch (err) {
+        handleError(err);
       }
+    });
 
-      if (!options.localOnly) {
-        console.log(chalk.gray('Uploading results to API...'));
-        try {
-          // fetch('http://localhost:4000/api/v1/runs', ...)
-        } catch (e: any) {
-          throw new NetworkError('Failed to upload results to Sibyl API: ' + e.message);
+  // --- SESSIONS ---
+  program
+    .command('sessions')
+    .description('List sessions saved next to the config')
+    .option('-c, --config <file>', 'Path to the Sibyl config', DEFAULT_CONFIG)
+    .option('-n, --limit <number>', 'How many to show', parsePositiveInt('limit'), 10)
+    .action((options) => {
+      try {
+        const sessions = storeFor(options.config).list().slice(0, options.limit);
+        if (sessions.length === 0) {
+          console.log(chalk.gray('No sessions yet. Run `sibyl run`.'));
+          return;
         }
-        console.log(chalk.gray('✔ Upload complete.'));
+        for (const s of sessions) {
+          const fails = s.summary.failures + s.summary.errored + s.summary.intermittent;
+          console.log(`${chalk.white(s.id.slice(0, 8))}  ${new Date(s.createdAt).toISOString()}  ${s.project}  ${s.summary.totalRuns} runs  ${fails ? chalk.red(`${fails} not passing`) : chalk.green('all passed')}  ${chalk.gray(`seed ${s.seed}`)}`);
+        }
+      } catch (err) {
+        handleError(err);
       }
-    } catch (err) {
-      handleError(err);
-    }
-  });
+    });
 
-// --- CI COMMAND ---
-program
-  .command('ci')
-  .description('Runs the engine in CI mode (no UI, non-zero exit on failure)')
-  .option('--target <script>', 'Path to the sibyl config', 'sibyl.config.ts')
-  .option('--iterations <number>', 'Number of simulation runs', '100')
-  .option('-u, --update-snapshots', 'Update stored snapshot golden files')
-  .option('--suggest-fix <filepaths...>', 'Files to analyze for suggested patches')
-  .action(async (options) => {
-    try {
-      console.log(`[INFO] Starting Sibyl CI Pipeline (${options.iterations} iterations)`);
-      
-      const configPath = path.resolve(options.target);
-      if (!fs.existsSync(configPath)) {
-        throw new ConfigLoadError(`Configuration file not found at ${options.target}`, options.target);
-      }
-    for (let i = 1; i <= parseInt(options.iterations); i++) {
-      // Mock fast execution
-      if (i === 42) failures++; 
-    }
+  // --- EXPLAIN ---
+  program
+    .command('explain <runId>')
+    .description('Ask Claude for a root-cause explanation grounded in the run\'s captured events')
+    .option('-c, --config <file>', 'Path to the Sibyl config (used to find local sessions)', DEFAULT_CONFIG)
+    .option('--suggest-fix <files...>', 'Also draft a patch for these source files')
+    .action(async (runId, options) => {
+      try {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new ApiKeyError('Missing ANTHROPIC_API_KEY environment variable.');
+        const { run, promises } = await resolveRun(runId, options.config);
+        if (run.passed) {
+          console.log(chalk.yellow(`Run ${run.runId} passed; there is nothing to explain.`));
+          return;
+        }
+        const { SibylExplainer, SibylPatcher } = await import('@sibyl/agent');
+        const evidence = {
+          status: run.status,
+          error: run.error,
+          schedules: run.concreteSchedules,
+          failedPromises: run.promiseResults.filter(p => !p.passed).map(p => ({
+            ...p, description: promises.find(d => d.id === p.promiseId)?.description,
+          })),
+        };
 
-    if (failures > 0) {
-      console.error(`[ERROR] Discovered ${failures} broken invariants! Failing CI.`);
-
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (apiKey) {
-        console.log('\n[INFO] Auto-analyzing root cause for the first failure...');
+        let detailed;
         try {
-          const explainer = new SibylExplainer({ apiKey });
-          
-          let explanation;
-          try {
-            explanation = await explainer.explainFailure('mock-run-id', [{ type: 'HTTP_REQUEST' }], { promise: 'no_500s' });
-          } catch(e: any) {
-             throw new ApiKeyError(`Agent explanation failed: ${e.message}`);
-          }
-          
-          console.log('--- AI Root Cause Analysis ---');
-          console.log(explanation);
-          console.log('------------------------------');
-
-          if (options.suggestFix && options.suggestFix.length > 0) {
-            console.log('\n[INFO] Generating suggested patch...');
-            const patcher = new SibylPatcher({ apiKey });
-            const fileContents: Record<string, string> = {};
-            for (const fp of options.suggestFix) {
-              if (fs.existsSync(fp)) fileContents[fp] = fs.readFileSync(fp, 'utf-8');
-            }
-
-            if (Object.keys(fileContents).length > 0) {
-              const patchResult = await patcher.suggestFix(explanation, fileContents);
-              const handoffDoc = `# Sibyl AI Handoff\n\n## Prompt for Agent\nPlease apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.\n**Explanation:** ${patchResult.explanation}\n\n## Patch\n\`\`\`diff\n${patchResult.unifiedDiff}\n\`\`\`\n`;
-              const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
-              fs.writeFileSync(handoffPath, handoffDoc);
-              console.log(`[SUCCESS] Handoff document generated: ${handoffPath}`);
-            }
-          }
+          detailed = await new SibylExplainer({ apiKey }).explainFailureDetailed(run.runId, run.events ?? [], evidence);
         } catch (err: any) {
-          if (err instanceof ApiKeyError) throw err;
-          throw new NetworkError(`Failed to generate explanation: ${err.message}`);
-        }
-      }
-
-      // Phase 17: GitHub App Integration (Mock)
-      const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
-      const isGitLab = process.env.GITLAB_CI === 'true';
-      const isCircleCI = process.env.CIRCLECI === 'true';
-      const isJenkins = process.env.JENKINS_URL !== undefined || process.env.SIBYL_JENKINS_RUN === 'true';
-      
-      if (isGithubActions) {
-        console.log('\n[INFO] Running in GitHub Actions. Uploading results to Sibyl API...');
-        console.log('[INFO] Sibyl API is now updating the PR Check Status and posting a failure comment via the Sibyl GitHub App.');
-      } else if (isGitLab) {
-        console.log(`\n[INFO] Running in GitLab CI. Uploading results for project ${process.env.CI_PROJECT_PATH}...`);
-        console.log('[INFO] Status reported back via GitLab API Webhook.');
-      } else if (isCircleCI) {
-        console.log('\n[INFO] Running in CircleCI. Uploading results to Sibyl API...');
-      } else if (isJenkins) {
-        console.log('\n[INFO] Running in Jenkins. Uploading results to Sibyl API...');
-      }
-
-      process.exit(1);
-    } else {
-      console.log(`[SUCCESS] 0 failures discovered.`);
-      
-      const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
-      const isGitLab = process.env.GITLAB_CI === 'true';
-      const isCircleCI = process.env.CIRCLECI === 'true';
-      const isJenkins = process.env.JENKINS_URL !== undefined || process.env.SIBYL_JENKINS_RUN === 'true';
-      
-      if (isGithubActions) {
-        console.log('\n[INFO] Running in GitHub Actions. Uploading results to Sibyl API...');
-        console.log('[INFO] Sibyl API is now marking the PR Check Status as SUCCESS via the Sibyl GitHub App.');
-      } else if (isGitLab || isCircleCI || isJenkins) {
-        console.log('\n[INFO] Running in Enterprise CI. Uploading SUCCESS status to Sibyl API...');
-      }
-
-      process.exit(0);
-    }
-    } catch (err) {
-      handleError(err);
-    }
-  });
-
-// --- REPLAY COMMAND ---
-program
-  .command('replay <run-id>')
-  .description('Re-executes a specific past run deterministically for debugging')
-  .action(async (runId) => {
-    console.log(chalk.magenta.bold(`\n⏪ Replaying Run: ${runId}`));
-    console.log(chalk.gray(`Fetching deterministic seed from API...`));
-    
-    // const res = await fetch(`http://localhost:4000/api/v1/runs/${runId}`);
-    // const seed = res.seed;
-
-    console.log(chalk.blue(`[14:02:00] Workflow started...`));
-    console.log(chalk.yellow(`[14:02:01] ⚡ INJECTING FAULT: HTTP TIMEOUT on /checkout`));
-    console.log(chalk.red(`[14:02:05] Promise 'no-500s' failed.`));
-    
-    console.log(chalk.magenta('\nReplay complete.'));
-  });
-
-// --- INVESTIGATE COMMAND ---
-program
-  .command('investigate <bugDescription>')
-  .description('AI translates a plain-English bug report into a FaultSchedule and runs it')
-  .option('--project <projectId>', 'The ID of the project', 'default-project')
-  .action(async (bugDescription, options) => {
-    try {
-      console.log(chalk.blue.bold(`\n🕵️  Sibyl AI Investigator Started`));
-      console.log(chalk.gray(`Analyzing bug: "${bugDescription}"\n`));
-
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new ApiKeyError('Missing ANTHROPIC_API_KEY environment variable.');
-      }
-
-      const agent = new SibylInvestigator({
-        apiKey,
-        fetchPromises: async () => [{ name: 'stripe_no_double_charge' }, { name: 'no_500s' }],
-        fetchRecentEvents: async () => [{ type: 'HTTP_REQUEST', target: 'api.stripe.com', domain: 'HTTP' }]
-      });
-
-      let result;
-      try {
-        result = await agent.investigate(bugDescription, options.project);
-      } catch (err: any) {
-        if (err instanceof BudgetExceededError || err instanceof ClaudeUnavailableError || err.name === 'BudgetExceededError' || err.name === 'ClaudeUnavailableError') {
-          console.log(chalk.yellow(`\n⚠️  Investigation unavailable: ${err.message}`));
+          if (!isAgentUnavailable(err)) throw err;
+          console.log(chalk.yellow(`AI explanation unavailable: ${err.message}`));
+          console.log(chalk.gray('Captured evidence:'));
+          console.log(JSON.stringify({ evidence, events: run.events ?? [] }, null, 2));
           return;
         }
-        throw new NetworkError(`Agent request failed: ${err.message}`);
+
+        console.log(chalk.bold('\nRoot-cause analysis'));
+        console.log(detailed.validatedNarrative);
+        if (!detailed.isGrounded) {
+          console.log(chalk.yellow(`\nCaution: the explanation mentions things not present in the captured events: ${detailed.ungroundedReferences.join(', ')}`));
+        }
+
+        if (options.suggestFix?.length) {
+          const files: Record<string, string> = {};
+          for (const fp of options.suggestFix) {
+            if (fs.existsSync(fp)) files[fp] = fs.readFileSync(fp, 'utf-8');
+            else console.log(chalk.yellow(`Skipping ${fp}: not found`));
+          }
+          if (Object.keys(files).length > 0) {
+            try {
+              const patch = await new SibylPatcher({ apiKey }).suggestFix(detailed.validatedNarrative, files);
+              const handoff = path.join(process.cwd(), 'sibyl-fix-handoff.md');
+              fs.writeFileSync(handoff, `# Sibyl fix handoff\n\nRun: ${run.runId} (seed ${run.seed})\n\n**Explanation:** ${patch.explanation}\n\n\`\`\`diff\n${patch.unifiedDiff}\n\`\`\`\n`);
+              console.log(chalk.green(`\n✔ Draft patch written to ${handoff}. Review it before applying; verify with \`sibyl replay ${run.runId.slice(0, 8)}\`.`));
+            } catch (err: any) {
+              if (!isAgentUnavailable(err)) throw err;
+              console.log(chalk.yellow(`Patch generation unavailable: ${err.message}`));
+            }
+          }
+        }
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  // --- INVESTIGATE ---
+  program
+    .command('investigate <bugDescription>')
+    .description('Turn a plain-English bug report into a proposed fault schedule, using your config\'s promises')
+    .option('-c, --config <file>', 'Path to the Sibyl config', DEFAULT_CONFIG)
+    .action(async (bugDescription, options) => {
+      try {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new ApiKeyError('Missing ANTHROPIC_API_KEY environment variable.');
+        const loaded = await loadConfig(options.config);
+        const latest = storeFor(options.config).list()[0];
+        const { SibylInvestigator } = await import('@sibyl/agent');
+
+        const agent = new SibylInvestigator({
+          apiKey,
+          fetchPromises: async () => loaded.config.promises.map(p => ({ id: p.id, description: p.description, severity: p.severity })),
+          fetchRecentEvents: async (_project: string, limit: number) =>
+            (latest?.runs ?? []).flatMap(r => r.events ?? []).slice(-limit),
+        });
+
+        let result;
+        try {
+          result = await agent.investigate(bugDescription, loaded.project);
+        } catch (err: any) {
+          if (!isAgentUnavailable(err)) throw err;
+          console.log(chalk.yellow(`Investigation unavailable: ${err.message}`));
+          return;
+        }
+
+        if (result.status === 'NEEDS_CLARIFICATION') {
+          console.log(chalk.yellow.bold('The investigator needs more detail:'));
+          console.log(result.reasoning);
+          console.log(chalk.cyan(`\nQuestion: ${result.clarifyingQuestion}`));
+          return;
+        }
+        console.log(chalk.bold('\nReasoning'));
+        console.log(result.reasoning);
+        console.log(chalk.bold('\nProposed fault schedule template'));
+        console.log(JSON.stringify(result.faultSchedule, null, 2));
+        if (result.draftNewPromiseCode) {
+          console.log(chalk.bold('\nDrafted promise'));
+          console.log(result.draftNewPromiseCode);
+        } else if (result.existingPromiseName) {
+          console.log(chalk.gray(`\nChecks existing promise: ${result.existingPromiseName}`));
+        }
+        console.log(chalk.gray('\nAdd the template to `templates` in your config and run `sibyl run` to search around it.'));
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  // --- RETRO ---
+  program
+    .command('retro <postmortemFile>')
+    .description('Draft promises and fault templates from an incident postmortem')
+    .action(async (postmortemFile) => {
+      try {
+        if (!fs.existsSync(postmortemFile)) {
+          throw new ConfigLoadError(`Could not find postmortem file: ${postmortemFile}`, postmortemFile);
+        }
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new ApiKeyError('Missing ANTHROPIC_API_KEY environment variable.');
+        const { SibylPostmortemAnalyzer } = await import('@sibyl/agent');
+
+        let result;
+        try {
+          result = await new SibylPostmortemAnalyzer({ apiKey }).analyze(fs.readFileSync(postmortemFile, 'utf-8'));
+        } catch (err: any) {
+          if (!isAgentUnavailable(err)) throw err;
+          console.log(chalk.yellow(`Analysis unavailable: ${err.message}`));
+          return;
+        }
+        console.log(chalk.bold('\nReasoning'));
+        console.log(result.explanation);
+        console.log(chalk.bold('\nDrafted promises'));
+        console.log(result.draftPromises);
+        console.log(chalk.bold('\nDrafted fault schedule templates'));
+        console.log(result.draftTemplates);
+        console.log(chalk.gray('\nThese are drafts: review them, add them to your config, and run `sibyl run`.'));
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  // --- DOCTOR ---
+  program
+    .command('doctor')
+    .description('Check the config loads, the API is reachable, and optional tooling is present')
+    .option('-c, --config <file>', 'Path to the Sibyl config', DEFAULT_CONFIG)
+    .action(async (options) => {
+      let problems = 0;
+      const row = (state: 'ok' | 'fail' | 'skip', name: string, info: string) => {
+        const tag = state === 'ok' ? chalk.green('PASS') : state === 'fail' ? chalk.red('FAIL') : chalk.gray('SKIP');
+        if (state === 'fail') problems++;
+        console.log(`[${tag}] ${chalk.bold(name)} ${chalk.gray(info)}`);
+      };
+      console.log(chalk.bold('\nSibyl doctor'));
+
+      try {
+        const loaded = await loadConfig(options.config);
+        row('ok', 'Config', `${loaded.config.promises.length} promises, ${loaded.config.templates.length} templates, drivers: ${(loaded.config.drivers ?? []).map(d => typeof d === 'string' ? d : d.domain).join(', ') || 'none'}`);
+      } catch (err: any) {
+        row('fail', 'Config', err.message.split('\n')[0]);
       }
 
-      if (result.status === 'NEEDS_CLARIFICATION') {
-        console.log(chalk.yellow.bold('⚠️  Agent needs clarification:'));
-        console.log(chalk.white(result.reasoning));
-        console.log(chalk.cyan(`\nQuestion: ${result.clarifyingQuestion}`));
-        return;
-      }
-
-      console.log(chalk.green.bold('✔ Investigation Complete'));
-      console.log(chalk.white(`\nReasoning:\n${result.reasoning}`));
-      
-      console.log(chalk.yellow('\nProposed Fault Schedule:'));
-      console.log(JSON.stringify(result.faultSchedule, null, 2));
-
-      if (result.draftNewPromiseCode) {
-        console.log(chalk.magenta('\nDrafted New Promise:'));
-        console.log(result.draftNewPromiseCode);
-        console.log(chalk.gray('\n(In a real implementation, this would be appended to sibyl.config.ts)'));
+      const api = apiFromEnv();
+      if (!api) {
+        row('skip', 'API', 'SIBYL_API_URL not set; sessions stay local');
       } else {
-        console.log(chalk.magenta(`\nUsing Existing Promise: ${result.existingPromiseName}`));
-      }
-
-      console.log(chalk.gray('\nAuto-triggering search run with proposed schedule...'));
-      // In reality we would call the search orchestrator here, e.g.:
-      // await orchestrator.run({ schedule: result.faultSchedule, promise: result.existingPromiseName });
-      console.log(chalk.green('✔ Mock search complete.'));
-
-    } catch (err) {
-      handleError(err);
-    }
-  });
-
-// --- RETRO COMMAND ---
-program
-  .command('retro <postmortemFile>')
-  .description('AI translates an incident postmortem into permanent regression tests')
-  .action(async (postmortemFile) => {
-    try {
-      console.log(chalk.blue.bold(`\n📝 Sibyl Postmortem Analyzer Started`));
-      
-      if (!fs.existsSync(postmortemFile)) {
-        throw new ConfigLoadError(`Could not find postmortem file: ${postmortemFile}`, postmortemFile);
-      }
-      
-      const postmortemText = fs.readFileSync(postmortemFile, 'utf-8');
-      console.log(chalk.gray(`Analyzing incident document (${postmortemText.length} bytes)...\n`));
-
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new ApiKeyError('Missing ANTHROPIC_API_KEY environment variable.');
-      }
-
-      const analyzer = new SibylPostmortemAnalyzer({ apiKey });
-
-      let result;
-      try {
-        console.log(chalk.magenta('🤖 Drafting regression tests...'));
-        result = await analyzer.analyze(postmortemText);
-      } catch (err: any) {
-        if (err instanceof BudgetExceededError || err instanceof ClaudeUnavailableError || err.name === 'BudgetExceededError' || err.name === 'ClaudeUnavailableError') {
-          console.log(chalk.yellow(`\n⚠️  Analysis unavailable: ${err.message}`));
-          return;
+        try {
+          const health = await api.health();
+          row('ok', 'API', `${process.env.SIBYL_API_URL} · ${health.sessions} sessions · writes ${health.auth.writesRequireToken ? 'need a token' : 'open'}`);
+          if (health.auth.writesRequireToken && !process.env.SIBYL_API_TOKEN) row('fail', 'API token', 'the API requires SIBYL_API_TOKEN for uploads');
+        } catch (err: any) {
+          row('fail', 'API', err.message);
         }
-        throw new NetworkError(`Agent request failed: ${err.message}`);
       }
 
-      console.log(chalk.green.bold('\n✔ Analysis Complete'));
-      console.log(chalk.white(`\nReasoning:\n${result.explanation}`));
-      
-      console.log(chalk.yellow('\nDrafted Programmatic Promise:'));
-      console.log(result.draftPromises);
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) row('skip', 'Anthropic key', 'ANTHROPIC_API_KEY not set; explain/investigate/retro unavailable');
+      else if (!key.startsWith('sk-ant-')) row('fail', 'Anthropic key', 'does not look like an Anthropic key (expected sk-ant-…)');
+      else row('ok', 'Anthropic key', 'present (not validated online)');
 
-      console.log(chalk.yellow('\nDrafted Fault Schedule Template:'));
-      console.log(result.draftTemplates);
+      try {
+        execFileSync('docker', ['info'], { stdio: 'ignore', timeout: 10_000 });
+        row('ok', 'Docker', 'daemon reachable (needed only for sandboxed workers)');
+      } catch {
+        row('skip', 'Docker', 'daemon not reachable; only needed for sandboxed workers');
+      }
 
-      console.log(chalk.cyan('\nCopy the above definitions into your sibyl.config.ts to close the loop on this incident!'));
+      console.log(problems ? chalk.red(`\n${problems} problem(s).`) : chalk.green('\nNo problems.'));
+      if (problems) process.exitCode = 1;
+    });
 
-    } catch (err) {
-      handleError(err);
-    }
-  });
-
-program.parse(process.argv);
+  return program;
+}

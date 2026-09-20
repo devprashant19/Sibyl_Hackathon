@@ -26,5 +26,6 @@
     "@types/cli-progress": "^3.11.6",
     "vitest": "^2.1.9",
     "@types/node": "^20.19.43"
-  }
+  },
+  "type": "module"
 }
