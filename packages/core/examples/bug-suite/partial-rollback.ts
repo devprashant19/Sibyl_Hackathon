@@ -1,29 +1,24 @@
-import { definePromise } from "@sibyl/sdk";
+import { AsyncContext, type ProgrammaticPromise } from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
-let orders: any[] = [];
-let inventory: any[] = [];
+let orders: { id: string; status: string }[] = [];
+let inventory: { orderId: string; allocated: boolean }[] = [];
 
 /**
- * THE BUG: A partial failure without a distributed rollback.
- * We insert into orders, then attempt to insert into inventory.
- * If the inventory insert fails (e.g., constraint error, or injected DB crash),
- * the order is left orphaned because we don't rollback the order array.
+ * THE BUG: two writes without a transaction. The order is inserted, then inventory is allocated.
+ * If the second write fails (an injected DATABASE/CONNECTION_DROP), the error is swallowed but the
+ * order is never rolled back, leaving an orphaned order.
  */
-export async function processOrderTx(orderId: string, simulateFailure = false) {
-  // Step 1: Insert Order
+export async function processOrderTx(orderId: string) {
   orders.push({ id: orderId, status: 'CREATED' });
 
-  // Simulate network delay between queries
-  await new Promise(r => setTimeout(r, 5));
-
-  // Step 2: Insert Inventory Allocation
-  if (simulateFailure) {
-    // We catch the error to prevent app crash, but FORGET to rollback orders!
-    console.error("Failed to allocate inventory");
-    return;
+  try {
+    const fault = AsyncContext.getEngine()?.evaluateFaultDecision('DATABASE', { query: 'INSERT INTO inventory' });
+    if (fault?.type === 'CONNECTION_DROP') throw new Error('connection dropped');
+    inventory.push({ orderId, allocated: true });
+  } catch {
+    // BUG: the order inserted above is not removed here.
   }
-
-  inventory.push({ orderId, allocated: true });
 }
 
 export function resetDb() {
@@ -31,14 +26,26 @@ export function resetDb() {
   inventory = [];
 }
 
-export const rollbackPromise = definePromise({
-  id: "bug-suite-partial-rollback",
-  name: "Atomic Transactions",
-  description: "Ensures no orphaned orders exist without inventory allocation.",
-  evaluate: async () => {
-    if (orders.length > 0 && inventory.length === 0) {
-      return { pass: false, message: `Orphaned record detected. Orders: ${orders.length}, Inventory: ${inventory.length}.` };
-    }
-    return { pass: true, message: "Atomic consistency maintained." };
-  }
-});
+export async function rollbackWorkflow() {
+  resetDb();
+  await processOrderTx('order-abc');
+}
+
+export const rollbackTemplates: FaultScheduleTemplate[] = [
+  {
+    id: '6b1f0f1e-8c1a-4c8e-9d65-3c2d7b0a1a03',
+    spec: { domain: 'DATABASE', type: 'CONNECTION_DROP' },
+    probabilityRange: [0, 1],
+    target: { query: 'INSERT INTO inventory' },
+  },
+];
+
+export const rollbackPromise: ProgrammaticPromise = {
+  id: 'bug-suite-partial-rollback',
+  description: 'Every order has an inventory allocation.',
+  severity: 'CRITICAL',
+  evaluate: () => {
+    const orphaned = orders.filter(o => !inventory.some(i => i.orderId === o.id));
+    return { passed: orphaned.length === 0, message: `Orphaned orders: ${orphaned.map(o => o.id).join(', ') || 'none'}.` };
+  },
+};

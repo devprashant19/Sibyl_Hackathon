@@ -1,26 +1,25 @@
-import { definePromise } from "@sibyl/sdk";
+import { AsyncContext, type ProgrammaticPromise } from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
 let db = { processedMessages: [] as string[] };
 let mq = { queue: ['msg-1'], acked: [] as string[] };
 
 /**
- * THE BUG: Worker processes an MQ message, updates the DB, but if it crashes
- * BEFORE acking the message, the MQ system will redeliver it later.
- * Because the handler doesn't check if it already processed msgId, it inserts a duplicate.
+ * THE BUG: the worker writes to the database, then acknowledges the message. If it crashes in
+ * between (an injected MESSAGE_QUEUE/CONSUMER_CRASH_MID_PROCESSING), the broker redelivers the
+ * message, and the worker, which never checks whether it already processed that id, writes again.
  */
-export async function processQueueWorker(simulateCrashAfterDB = false) {
+export async function processQueueWorker() {
   const msg = mq.queue[0];
   if (!msg) return;
 
-  // Process and save to DB
   db.processedMessages.push(msg);
 
-  // BUG CAUSE: Crash before ACK
-  if (simulateCrashAfterDB) {
-    throw new Error("Worker crashed before ACK");
+  const fault = AsyncContext.getEngine()?.evaluateFaultDecision('MESSAGE_QUEUE', { topic: 'orders', messageId: msg });
+  if (fault?.type === 'CONSUMER_CRASH_MID_PROCESSING') {
+    throw new Error('Worker crashed before ACK');
   }
 
-  // ACK
   mq.acked.push(msg);
   mq.queue.shift();
 }
@@ -30,19 +29,33 @@ export function resetDb() {
   mq = { queue: ['msg-1'], acked: [] };
 }
 
-export const mqDuplicatePromise = definePromise({
-  id: "bug-suite-mq-duplicate",
-  name: "Idempotent MQ Worker",
-  description: "Ensures the database remains consistent even if a message is delivered twice (At-Least-Once delivery).",
-  evaluate: async () => {
-    const counts = db.processedMessages.reduce((acc, val) => {
-      acc[val] = (acc[val] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    if (counts['msg-1'] > 1) {
-      return { pass: false, message: `Message msg-1 was processed ${counts['msg-1']} times. Missing idempotency key check.` };
+/** The broker keeps delivering until the message is acknowledged (at most 3 deliveries here). */
+export async function mqWorkflow() {
+  resetDb();
+  for (let delivery = 0; delivery < 3 && mq.queue.length > 0; delivery++) {
+    try {
+      await processQueueWorker();
+    } catch {
+      // the worker restarts; the unacknowledged message is redelivered
     }
-    return { pass: true, message: "Message processed exactly once." };
   }
-});
+}
+
+export const mqDuplicateTemplates: FaultScheduleTemplate[] = [
+  {
+    id: '6b1f0f1e-8c1a-4c8e-9d65-3c2d7b0a1a04',
+    spec: { domain: 'MESSAGE_QUEUE', type: 'CONSUMER_CRASH_MID_PROCESSING' },
+    probabilityRange: [0, 1],
+    target: { topic: 'orders' },
+  },
+];
+
+export const mqDuplicatePromise: ProgrammaticPromise = {
+  id: 'bug-suite-mq-duplicate',
+  description: 'A redelivered message is processed exactly once.',
+  severity: 'CRITICAL',
+  evaluate: () => {
+    const count = db.processedMessages.filter(m => m === 'msg-1').length;
+    return { passed: count === 1, message: `msg-1 was processed ${count} times.` };
+  },
+};
