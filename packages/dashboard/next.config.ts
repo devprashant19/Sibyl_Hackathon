@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // @sibyl/ui ships TypeScript source (main: ./src/index.ts), so Next must compile it.
+  transpilePackages: ["@sibyl/ui"],
 };
 
 export default nextConfig;

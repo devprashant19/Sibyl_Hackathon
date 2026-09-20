@@ -1,0 +1,4 @@
+test(core): refactor coverage for search.test
+
+Additional updates:
+- test(core): refactor coverage for bayesian.test
