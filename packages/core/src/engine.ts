@@ -90,7 +90,7 @@ export class SimulationEngine {
   }
 
   start() {
-    this.clock.install(this.clockOptions.mode);
+    this.clock.install({ mode: this.clockOptions.mode as any });
   }
 
   stop() {

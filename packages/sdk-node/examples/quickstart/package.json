@@ -1,0 +1,20 @@
+{
+  "name": "sibyl-quickstart",
+  "version": "1.0.0",
+  "description": "Sibyl Quickstart Example",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@sibyl/sdk-node": "workspace:*",
+    "@sibyl-cli": "workspace:*",
+    "express": "^4.19.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.11.6",
+    "tsx": "^4.11.0"
+  }
+}
