@@ -1,37 +1,48 @@
-version: '3.8'
+# Local tracing/metrics backends.
+#
+#   docker compose -f docker-compose.observability.yml up -d
+#
+# Jaeger UI http://localhost:16686, Prometheus http://localhost:9090, Grafana http://localhost:3001
+# (admin / ${GRAFANA_ADMIN_PASSWORD:-admin}; Prometheus and Jaeger datasources are provisioned).
+#
+# Note: Sibyl does not export traces or metrics out of the box. packages/core/src/telemetry uses
+# @opentelemetry/api, which is a no-op until a process registers an OpenTelemetry SDK; point such an
+# SDK at the OTLP ports below (http://localhost:4318 or localhost:4317). Prometheus scrapes only
+# itself and Jaeger (see infra/observability/prometheus.yml).
+
+name: sibyl-observability
 
 services:
-  # Distributed Tracing Backend
+  # Distributed tracing backend (receives OTLP)
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.62.0
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
       - "16686:16686" # UI
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
+    restart: unless-stopped
 
-  # Metrics Backend
+  # Metrics backend
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.55.1
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090" # Prometheus UI
+    restart: unless-stopped
 
   # Dashboarding
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "3001:3000" # Grafana UI (3000 is used by Sibyl Dashboard)
+      - "3001:3000" # Grafana UI (3000 is used by the Sibyl dashboard)
     depends_on:
       - prometheus
       - jaeger
-
-# NOTE: For Prometheus to scrape Sibyl, create a `prometheus.yml` in the root:
-# scrape_configs:
-#   - job_name: 'sibyl'
-#     static_configs:
-#       - targets: ['api:4000']
+    restart: unless-stopped

@@ -1,56 +1,120 @@
-version: '3.8'
+# Sibyl API + dashboard, built from this repository.
+#
+#   docker compose up -d --build            # API on :4000, dashboard on :3000
+#   SIBYL_API_URL=http://localhost:4000 node packages/cli/bin/sibyl.js ci   # upload runs from the host
+#
+# Optional queue worker (Redis + a worker that starts Docker sandboxes via the host's Docker socket):
+#
+#   docker compose --profile worker up -d --build
+#
+# The dashboard fetches the API from the browser, so NEXT_PUBLIC_SIBYL_API_URL must be a URL the
+# browser can reach (not http://api:4000). It is baked in at image build time: after changing it,
+# rebuild with `docker compose build dashboard`.
+
+name: sibyl
 
 services:
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: sibyl
-      POSTGRES_PASSWORD: sibyl_password
-      POSTGRES_DB: sibyl_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - sibyl_pgdata:/var/lib/postgresql/data
-    restart: always
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - sibyl_redisdata:/data
-    restart: always
-
   api:
-    image: node:20-alpine
-    working_dir: /app
-    command: ["npm", "run", "start:api"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+    image: sibyl/api:local
     environment:
-      - POSTGRES_URI=postgresql://sibyl:sibyl_password@db:5432/sibyl_db
-      - REDIS_URI=redis://redis:6379
-      # Security / Deployment Flags
-      - SIBYL_ENTERPRISE_SELF_HOSTED=true
-      - SIBYL_DISABLE_AI=${SIBYL_DISABLE_AI:-false}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      PORT: "4000"
+      SIBYL_API_HOST: 0.0.0.0
+      SIBYL_DATA_DIR: /data/sessions
+      # Without a token anyone who can reach port 4000 can upload sessions; set one on shared hosts.
+      SIBYL_API_TOKEN: ${SIBYL_API_TOKEN:-}
+      SIBYL_CORS_ORIGIN: ${SIBYL_CORS_ORIGIN:-}
+      SIBYL_RETENTION_DAYS: ${SIBYL_RETENTION_DAYS:-}
     ports:
       - "4000:4000"
-    depends_on:
-      - db
-      - redis
-    restart: on-failure
+    volumes:
+      - sibyl_sessions:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
 
   dashboard:
-    image: node:20-alpine
-    working_dir: /app
-    command: ["npm", "run", "start:dashboard"]
-    environment:
-      - NEXT_PUBLIC_API_URL=http://api:4000
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dashboard
+      args:
+        NEXT_PUBLIC_SIBYL_API_URL: ${NEXT_PUBLIC_SIBYL_API_URL:-http://localhost:4000}
+    image: sibyl/dashboard:local
     ports:
       - "3000:3000"
     depends_on:
-      - api
-    restart: on-failure
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  # --- profile: worker ------------------------------------------------------------------------
+  # Not needed for the CLI, API or dashboard.
+
+  redis:
+    image: redis:7-alpine
+    profiles: [worker]
+    volumes:
+      - sibyl_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: worker
+    image: sibyl/worker:local
+    profiles: [worker]
+    environment:
+      REDIS_URL: redis://redis:6379
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
+    volumes:
+      # The worker runs each simulation in a sibling container through the host's Docker daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Postgres is only used by the enterprise SSO/SCIM modules (POSTGRES_URI); nothing in this file
+  # needs it, including the worker. Start it with `--profile enterprise` if you use those modules.
+  postgres:
+    image: postgres:15-alpine
+    profiles: [enterprise]
+    environment:
+      POSTGRES_USER: sibyl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sibyl_password}
+      POSTGRES_DB: sibyl_db
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - sibyl_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sibyl -d sibyl_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
-  sibyl_pgdata:
+  sibyl_sessions:
   sibyl_redisdata:
+  sibyl_pgdata:
