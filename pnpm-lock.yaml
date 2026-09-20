@@ -235,20 +235,12 @@ importers:
       '@playwright/test':
         specifier: ^1.49.1
         version: 1.62.1
-      '@testcontainers/postgresql':
-        specifier: ^10.15.0
-        version: 10.28.0
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
-      testcontainers:
-        specifier: ^10.15.0
-        version: 10.28.0
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
-
-  packages/fault-drivers/clock: {}
 
   packages/fault-drivers/db:
     dependencies:
@@ -385,8 +377,6 @@ importers:
         specifier: ^20.0.0
         version: 20.19.43
 
-  packages/fault-drivers/queue: {}
-
   packages/fault-drivers/resource:
     dependencies:
       '@sibyl/core':
@@ -418,6 +408,10 @@ importers:
       '@sibyl/shared':
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
 
   packages/sdk-python: {}
 
@@ -2545,9 +2539,6 @@ packages:
 
   '@testcontainers/mysql@12.1.0':
     resolution: {integrity: sha512-fNuN+Fs2N0EQBSk6HVplSl7qxFGUX9gzNw0ljr903PbBhvy2BM3Wl4kVAa1lFpizb8cY8mKYAs0C8cDL5JRIAg==}
-
-  '@testcontainers/postgresql@10.28.0':
-    resolution: {integrity: sha512-NN25rruG5D4Q7pCNIJuHwB+G85OSeJ3xHZ2fWx0O6sPoPEfCYwvpj8mq99cyn68nxFkFYZeyrZJtSFO+FnydiA==}
 
   '@testcontainers/postgresql@12.1.0':
     resolution: {integrity: sha512-Pjf2VSVNirEPfz36nidyrVAnZvc2YhajOznY4VgyEsvfTd5qiMNOuPq96drREvxAUtXl5SFLX7vXj7sSq4aTcA==}
@@ -8639,15 +8630,6 @@ snapshots:
   '@testcontainers/mysql@12.1.0':
     dependencies:
       testcontainers: 12.1.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - react-native-b4a
-      - supports-color
-
-  '@testcontainers/postgresql@10.28.0':
-    dependencies:
-      testcontainers: 10.28.0
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer

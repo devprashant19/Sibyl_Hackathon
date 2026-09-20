@@ -1,5 +1,3 @@
-import os
-import json
 import logging
 from typing import Callable, Any, Dict, List
 
@@ -35,24 +33,32 @@ def define_promise(id: str, description: str, severity: str = "CRITICAL"):
         return func
     return decorator
 
-def install(intercept_http: bool = True, intercept_db: bool = True, intercept_clock: bool = True):
+_installed: set = set()
+
+
+def install(intercept_http: bool = True, intercept_db: bool = True, intercept_clock: bool = False):
     """
-    Installs Sibyl interception globally across the Python process.
-    By default, monkey-patches HTTP (requests, httpx), DB (psycopg2, asyncpg), and Time (time, asyncio).
+    Installs Sibyl's HTTP (requests, httpx) and DB (psycopg2, asyncpg) interception. Idempotent.
+
+    The clock is never patched globally: patching ``time.sleep``/``asyncio.sleep`` process-wide
+    made servers' event loops spin and broke ``isinstance`` checks on ``datetime``. Use the scoped
+    ``with sibyl.VirtualClock(...):`` around the code under simulation instead.
     """
-    logger.info("[Sibyl] Installing fault drivers globally...")
-    
     if intercept_clock:
-        logger.info("[Sibyl] -> Virtual Clock active.")
-        from .clock import install_clock
-        install_clock()
-        
-    if intercept_http:
+        raise ValueError(
+            "install(intercept_clock=True) is no longer supported: the clock is not patched globally. "
+            "Wrap the simulated code in `with sibyl.VirtualClock():` instead."
+        )
+    logger.info("[Sibyl] Installing fault drivers...")
+
+    if intercept_http and "http" not in _installed:
+        _installed.add("http")
         logger.info("[Sibyl] -> HTTP driver active.")
         from .drivers.http import install_http
         install_http()
-        
-    if intercept_db:
+
+    if intercept_db and "db" not in _installed:
+        _installed.add("db")
         logger.info("[Sibyl] -> Postgres driver active.")
         from .drivers.db import install_db
         install_db()
