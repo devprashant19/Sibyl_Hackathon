@@ -1,8 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    // Pulumi's Node.js runtime loads the program as CommonJS (package.json has no "type": "module").
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
     "outDir": "./dist",
     "rootDir": "."
   },
-  "include": ["**/*.ts"]
+  "include": ["index.ts"]
 }

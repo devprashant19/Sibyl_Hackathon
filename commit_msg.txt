@@ -1,4 +1,0 @@
-chore(infra): update infrastructure configuration for main
-
-Additional updates:
-- chore(infra): update infrastructure configuration for deployment
