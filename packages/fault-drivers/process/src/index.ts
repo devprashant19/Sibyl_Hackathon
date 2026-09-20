@@ -1,4 +1,4 @@
-import type { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl/core';
 import { wrapChildProcess } from './process-wrapper';
 
 export class ProcessFaultDriver implements FaultDriver {

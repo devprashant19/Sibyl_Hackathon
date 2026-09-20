@@ -1,4 +1,0 @@
-feat(fault-drivers): refactor mq driver implementation (kafka-wrapper)
-
-Additional updates:
-- feat(fault-drivers): refactor mq driver implementation (sqs-wrapper)
