@@ -39,7 +39,7 @@ function makeRun(
   const schedule = [
     {
       id: uuid(),
-      spec: { domain: 'HTTP' as const, type: 'SLOW_RESPONSE', delayMs: 2000 },
+      spec: { domain: 'HTTP' as const, type: 'SLOW_RESPONSE' as const, delayMs: 2000 },
       probability: 0.4,
     },
   ];
@@ -76,7 +76,7 @@ function makeRun(
 }
 
 /** Seed the store with realistic demo sessions if it is empty. */
-export async function seedDemoData(store: MemorySessionStore): Promise<void> {
+export async function seedDemoData(store: SessionStore): Promise<void> {
   // ── Project 1: checkout ──────────────────────────────────────────────────
   const checkoutPromises = [
     { id: 'no-double-charges', description: 'A customer is never charged twice', severity: 'CRITICAL' as const, scope: 'run' as const },

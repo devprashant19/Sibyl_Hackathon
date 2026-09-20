@@ -268,7 +268,7 @@ export function createApp(options: AppOptions): { app: Express; bus: EventEmitte
           seed,
           status,
           passed: status === 'COMPLETED',
-          concreteSchedules: [{ id: crypto.randomUUID(), spec: { domain: 'HTTP' as const, type: 'SLOW_RESPONSE', delayMs: 1200 }, probability: 0.4 }],
+          concreteSchedules: [{ id: crypto.randomUUID(), spec: { domain: 'HTTP' as const, type: 'SLOW_RESPONSE' as const, delayMs: 1200 }, probability: 0.4 }],
           promiseResults: scenario.promises.map(p => ({
             promiseId: p.id,
             simulationRunId: runId,
@@ -308,7 +308,7 @@ export function createApp(options: AppOptions): { app: Express; bus: EventEmitte
           iterations: total,
           startedAt: Date.now() - total * 250,
           completedAt: Date.now(),
-          source: 'demo',
+          source: 'api',
           promises: scenario.promises,
           summary: {
             totalRuns: total,
