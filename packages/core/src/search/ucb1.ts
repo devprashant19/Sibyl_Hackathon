@@ -1,4 +1,4 @@
-import { FaultSchedule, FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultSchedule, FaultScheduleTemplate } from '@sibyl/shared';
 import { SearchStrategy, SearchRunRecord } from './strategy';
 import { PRNG } from '../prng';
 import * as crypto from 'crypto';
@@ -15,11 +15,18 @@ export class Ucb1SearchStrategy implements SearchStrategy {
   private prng: PRNG;
   private totalRuns = 0;
   private coverage: Map<string, CoverageNode> = new Map();
+  // Which bucket each issued schedule came from, keyed by schedule id. This used to ride along on
+  // the schedule as `_ucb1Key`, but the orchestrator validates schedules with zod, which strips
+  // unknown keys — so feedback never found a key and UCB1 never learned anything.
+  private scheduleBuckets: Map<string, string> = new Map();
+  // Issued but not yet reported, so concurrent workers don't all pick the same unvisited bucket.
+  private pending: Map<string, number> = new Map();
   
   // Shrinking state
   private shrinkMode = false;
   private shrinkAnchor: FaultSchedule[] | null = null;
   private shrinkQueue: FaultSchedule[][] = [];
+  private minimalFailing: FaultSchedule[] | null = null;
   
   // Cache of possible discretized buckets for each template
   private templateSpace: Map<string, any[]> = new Map();
@@ -81,13 +88,14 @@ export class Ucb1SearchStrategy implements SearchStrategy {
       for (const b of buckets) {
         const key = this.getBucketKey(t.id, b.probBucket, b.delayBucket);
         const node = this.coverage.get(key) || { visits: 0, failures: 0 };
-        
+        const effectiveVisits = node.visits + (this.pending.get(key) || 0);
+
         let score: number;
-        if (node.visits === 0) {
+        if (effectiveVisits === 0) {
           score = Infinity; // Always visit unvisited buckets first
         } else {
-          const exploitation = node.failures / node.visits;
-          const exploration = Math.sqrt(Math.log(this.totalRuns || 1) / node.visits);
+          const exploitation = node.failures / effectiveVisits;
+          const exploration = Math.sqrt(Math.log(Math.max(this.totalRuns, 1)) / effectiveVisits);
           // C = 1.414 (standard sqrt(2))
           score = exploitation + 1.414 * exploration;
         }
@@ -101,21 +109,20 @@ export class Ucb1SearchStrategy implements SearchStrategy {
         }
       }
 
-      // Record visit instantly so we don't pick it 5 times if concurrency is high?
-      // Wait, feedback() records visits. If concurrency is high, multiple runs might pick the same unvisited bucket. 
-      // That's acceptable for standard UCB1.
-
       const spec = { ...t.spec };
       if (bestBucket.delay !== undefined) spec.delayMs = bestBucket.delay;
 
+      const key = this.getBucketKey(t.id, bestBucket.probBucket, bestBucket.delayBucket);
+      const id = crypto.randomUUID(); // ids never influence behaviour, so they need not be seeded
+      this.scheduleBuckets.set(id, key);
+      this.pending.set(key, (this.pending.get(key) || 0) + 1);
+
       schedules.push({
-        id: crypto.randomUUID(), // we can't use PRNG for uuids easily without a deterministic UUID gen, but orchestrator doesn't care
+        id,
         spec,
         probability: bestBucket.prob,
         target: t.target,
-        // Hack: attach bucket keys for feedback loop
-        _ucb1Key: this.getBucketKey(t.id, bestBucket.probBucket, bestBucket.delayBucket)
-      } as any);
+      } as FaultSchedule);
     }
 
     return schedules;
@@ -125,18 +132,26 @@ export class Ucb1SearchStrategy implements SearchStrategy {
     this.totalRuns++;
 
     if (!runResult.passed) {
-      // Trigger shrink mode if we found a new anchor
-      if (!this.shrinkMode) {
+      const smaller = this.shrinkAnchor && runResult.concreteSchedules.length < this.shrinkAnchor.length;
+      if (!this.shrinkMode || smaller) {
+        // A new failure, or a pruned schedule that still fails: that becomes the anchor and we
+        // keep pruning from it, so shrinking continues down to a schedule where removing any
+        // single fault makes the failure disappear.
         this.shrinkMode = true;
         this.shrinkAnchor = runResult.concreteSchedules;
+        if (!this.minimalFailing || runResult.concreteSchedules.length < this.minimalFailing.length) {
+          this.minimalFailing = runResult.concreteSchedules;
+        }
         this.generateShrinkQueue();
       }
     }
 
     // Update UCB1 coverage tracking
     for (const schedule of runResult.concreteSchedules) {
-      const key = (schedule as any)._ucb1Key;
+      const key = this.scheduleBuckets.get(schedule.id);
       if (key) {
+        const pending = this.pending.get(key) || 0;
+        if (pending > 0) this.pending.set(key, pending - 1);
         const node = this.coverage.get(key) || { visits: 0, failures: 0 };
         node.visits++;
         if (!runResult.passed) {
@@ -145,6 +160,11 @@ export class Ucb1SearchStrategy implements SearchStrategy {
         this.coverage.set(key, node);
       }
     }
+  }
+
+  /** The smallest schedule set seen to fail so far, or null if nothing has failed. */
+  getMinimalFailingSchedule(): FaultSchedule[] | null {
+    return this.minimalFailing;
   }
 
   private generateShrinkQueue() {
@@ -166,6 +186,7 @@ export class Ucb1SearchStrategy implements SearchStrategy {
       shrinkMode: this.shrinkMode,
       shrinkAnchor: this.shrinkAnchor,
       shrinkQueue: this.shrinkQueue,
+      scheduleBuckets: Array.from(this.scheduleBuckets.entries()),
       prng: (this.prng as any).exportState()
     };
   }
@@ -179,6 +200,7 @@ export class Ucb1SearchStrategy implements SearchStrategy {
     this.shrinkMode = state.shrinkMode || false;
     this.shrinkAnchor = state.shrinkAnchor || null;
     this.shrinkQueue = state.shrinkQueue || [];
+    if (state.scheduleBuckets) this.scheduleBuckets = new Map(state.scheduleBuckets);
     if (state.prng && (this.prng as any).importState) {
       (this.prng as any).importState(state.prng);
     }

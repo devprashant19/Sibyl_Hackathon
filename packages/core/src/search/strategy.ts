@@ -1,4 +1,4 @@
-import { FaultSchedule, PromiseResult } from '@sibyl-shared';
+import { FaultSchedule, PromiseResult } from '@sibyl/shared';
 
 export interface SearchRunRecord {
   runId: string;
