@@ -48,7 +48,7 @@ export default function RunExplorer() {
         <div className="w-80 border-r border-border flex flex-col h-full bg-surface">
           <div className="p-4 border-b border-border flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-lg text-text flex items-center gap-2">
+              <h2 className="font-bold text-lg text-text flex items-center gap-2">
                 Execution Feed
                 <span className="px-2 py-0.5 rounded-full bg-surface-raised border border-border text-xs font-mono text-text-muted">
                   {runs.length}

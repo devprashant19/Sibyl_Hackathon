@@ -96,7 +96,7 @@ export default function MarketingLandingPage() {
             <div className="inline-block px-3 py-1 rounded-full border border-border bg-surface text-xs font-mono text-text-muted mb-6">
               Foresight for production systems
             </div>
-            <h1 className="font-sans text-5xl md:text-6xl leading-[1.1] font-semibold mb-6">
+            <h1 className="font-sans text-5xl md:text-6xl leading-[1.1] font-bold mb-6">
               See the failure <br/> before they do.
             </h1>
             <p className="text-lg text-text-muted leading-relaxed mb-8 max-w-xl">
@@ -152,7 +152,7 @@ export default function MarketingLandingPage() {
                 <span className="font-mono text-4xl font-bold text-text-dim/30">{d.step}</span>
                 <span className="material-symbols-outlined text-green text-3xl">{d.icon}</span>
               </div>
-              <h3 className="text-xl font-semibold mb-3">{d.title}</h3>
+              <h3 className="text-xl font-bold mb-3">{d.title}</h3>
               <p className="text-text-muted leading-relaxed mb-6">{d.desc}</p>
             </div>
           ))}
@@ -161,7 +161,7 @@ export default function MarketingLandingPage() {
         {/* DOMAINS */}
         <section id="page-product">
           <div className="font-mono text-xs text-green uppercase tracking-[0.14em] mb-4">Fault Boundaries</div>
-          <h2 className="font-sans text-4xl font-semibold mb-4">Injection at every boundary.</h2>
+          <h2 className="font-sans text-4xl font-bold mb-4">Injection at every boundary.</h2>
           <p className="text-lg text-text-muted leading-relaxed mb-10 max-w-2xl">Not just HTTP. Sibyl instruments the real edges where distributed systems fail.</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -173,7 +173,7 @@ export default function MarketingLandingPage() {
             ].map(d => (
               <div key={d.tag} className="bg-surface border border-border p-6 rounded-xl hover:shadow-lg transition-shadow">
                 <div className="inline-block px-2 py-1 rounded bg-surface-raised border border-border font-mono text-[11px] text-text-muted tracking-widest mb-4">{d.tag}</div>
-                <h4 className="font-semibold text-lg mb-2">{d.title}</h4>
+                <h4 className="font-bold text-lg mb-2">{d.title}</h4>
                 <p className="text-sm text-text-muted leading-relaxed">{d.desc}</p>
               </div>
             ))}
@@ -185,7 +185,7 @@ export default function MarketingLandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="font-mono text-xs text-green uppercase tracking-[0.14em] mb-4">Console</div>
-              <h2 className="font-sans text-4xl font-semibold mb-6">Every seed, replayable.</h2>
+              <h2 className="font-sans text-4xl font-bold mb-6">Every seed, replayable.</h2>
               <p className="text-lg text-text-muted leading-relaxed mb-8">
                 Point the CLI at a Sibyl API and the console shows sessions live, lists every failing run with its fault schedule and event timeline, and gives you the exact command to replay it.
               </p>

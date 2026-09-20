@@ -14,7 +14,7 @@ export default function Trends() {
       {/* Sticky Header */}
       <header className="sticky top-0 z-10 bg-surface/90 backdrop-blur border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="font-semibold text-xl text-text">System Reliability Trends</h1>
+          <h1 className="font-bold text-xl text-text">System Reliability Trends</h1>
           <span className="px-2 py-0.5 rounded-md bg-green-dim text-green-bright text-[10px] font-mono border border-green/20">
             14 Services Active
           </span>

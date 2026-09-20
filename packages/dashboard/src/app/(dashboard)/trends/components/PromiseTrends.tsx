@@ -61,7 +61,7 @@ export function PromiseTrends({ trends, isLoading, error, onRetry }: PromiseTren
       <div className="bg-surface border border-border rounded-xl p-6">
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h3 className="font-semibold text-lg text-text">System Reliability</h3>
+            <h3 className="font-bold text-lg text-text">System Reliability</h3>
             <div className="flex items-center gap-4 mt-2 text-xs text-text-muted">
               <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green" /> Observed</span>
               <span className="flex items-center gap-1.5"><div className="w-2 h-0.5 bg-red border-t border-dashed border-red" /> SLA Target</span>
@@ -126,7 +126,7 @@ export function PromiseTrends({ trends, isLoading, error, onRetry }: PromiseTren
         
         {/* Left: Failures by Fault Type */}
         <div className="lg:col-span-5 bg-surface border border-border rounded-xl p-6 flex flex-col">
-          <h3 className="font-semibold text-lg text-text mb-6">Failures by Fault Type</h3>
+          <h3 className="font-bold text-lg text-text mb-6">Failures by Fault Type</h3>
           
           <div className="space-y-5 flex-1">
             {[
@@ -154,7 +154,7 @@ export function PromiseTrends({ trends, isLoading, error, onRetry }: PromiseTren
         {/* Right: Top Failing Promises */}
         <div className="lg:col-span-7 bg-surface border border-border rounded-xl p-0 flex flex-col overflow-hidden">
           <div className="p-6 border-b border-border">
-            <h3 className="font-semibold text-lg text-text">Top Failing Promises</h3>
+            <h3 className="font-bold text-lg text-text">Top Failing Promises</h3>
           </div>
           
           <div className="overflow-x-auto">
