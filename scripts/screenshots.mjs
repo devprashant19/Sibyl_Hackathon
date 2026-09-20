@@ -97,7 +97,13 @@ try {
   process.exitCode = 1;
 } finally {
   for (const p of procs) {
-    try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(p.pid), '/T', '/F']) : p.kill(); } catch {}
+    try {
+      if (process.platform === 'win32') {
+        spawn('taskkill', ['/pid', String(p.pid), '/T', '/F']);
+      } else {
+        p.kill();
+      }
+    } catch {}
   }
   setTimeout(() => process.exit(), 1500);
 }

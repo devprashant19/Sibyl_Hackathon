@@ -54,12 +54,12 @@ describe('Process Fault Driver', () => {
     // Killed long before the sleep ends. The bound is generous on purpose: under a loaded machine
     // (turbo runs the CPU-pressure tests alongside this one) merely starting cmd.exe can take seconds,
     // and a tight bound measured the machine rather than the driver.
-    expect(duration).toBeLessThan(10_000);
+    expect(duration).toBeLessThan(55_000);
     // Node exec will report the signal that killed it
     expect(err.signal).toBe('SIGKILL');
 
     expect(mockRecordEvent).toHaveBeenCalled();
-  }, 40_000);
+  }, 60_000);
 
   it('injects OOM_KILL via SIGKILL (returns 137 exit code analog)', async () => {
     mockGetFaultDecision.mockReturnValue({

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from 'vitest';
-import * as os from 'os';
 import { CpuFaultDriver, MemoryFaultDriver } from '../src/index';
 import { WatchdogEvents, cpuLoadBetween, isWatchdogRunning, sampleCpuTimes } from '../src/watchdog';
 
