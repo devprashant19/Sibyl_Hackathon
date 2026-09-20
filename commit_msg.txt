@@ -1,4 +1,0 @@
-chore: update package.json configuration
-
-Additional updates:
-- refactor(agent): improve tools implementation

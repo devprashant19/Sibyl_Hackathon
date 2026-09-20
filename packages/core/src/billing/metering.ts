@@ -1,5 +1,3 @@
-import { PlanTier } from "./tiers";
-
 /** "true", "1", "yes", "on" in any case. Exact-match "true" silently ignored SIBYL_…=1. */
 export function isTruthyEnv(value: string | undefined): boolean {
   return !!value && /^(1|true|yes|on)$/i.test(value.trim());

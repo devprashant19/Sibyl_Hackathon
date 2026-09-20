@@ -174,6 +174,7 @@ export class VirtualClock {
 
     if (installCount === 0) patchGlobals();
     installCount++;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- module state, not a closure alias
     if (!primaryClock) primaryClock = this;
 
     this.installed = true;
@@ -182,11 +183,7 @@ export class VirtualClock {
   public uninstall() {
     if (!this.installed) return;
 
-    for (const task of this.queue) {
-      if (task.nativeId !== undefined) {
-        task.isInterval ? NATIVE.clearInterval(task.nativeId) : NATIVE.clearTimeout(task.nativeId);
-      }
-    }
+    for (const task of this.queue) this.clearNative(task);
     this.queue = [];
 
     installCount--;
@@ -297,9 +294,7 @@ export class VirtualClock {
   clearTimer(id: TimerId): boolean {
     const task = this.queue.find(t => t.id === id);
     if (!task) return false;
-    if (task.nativeId !== undefined) {
-      task.isInterval ? NATIVE.clearInterval(task.nativeId) : NATIVE.clearTimeout(task.nativeId);
-    }
+    this.clearNative(task);
     this.removeTask(id);
     return true;
   }
@@ -314,6 +309,12 @@ export class VirtualClock {
       task.triggerTime = this.now + task.delay;
       task.seq = this.seq++;
     }
+  }
+
+  private clearNative(task: TimerTask) {
+    if (task.nativeId === undefined) return;
+    if (task.isInterval) NATIVE.clearInterval(task.nativeId);
+    else NATIVE.clearTimeout(task.nativeId);
   }
 
   private removeTask(id: TimerId) {
