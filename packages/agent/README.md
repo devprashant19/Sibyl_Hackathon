@@ -40,10 +40,10 @@ The Patcher reads the Explainer's root-cause analysis, fetches the relevant sour
 
 ## Air-Gapped Safety
 
-All agents check `process.env.SIBYL_DISABLE_AI` at construction time. If set to `'true'`, the constructor throws an explicit error:
+All agents check `process.env.SIBYL_DISABLE_AI` at construction time. If set to a truthy value (`1`, `true`, `yes`, `on`, case-insensitive), the constructor throws an exported `AIDisabledError`:
 
 ```
-Error: AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true).
+AIDisabledError: AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true).
 To use AI features in an air-gapped environment, provide a local LLM endpoint.
 ```
 
@@ -56,7 +56,7 @@ import { SibylInvestigator } from '@sibyl/agent';
 
 const investigator = new SibylInvestigator({
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-3-5-sonnet-20240620',
+  // model defaults to DEFAULT_MODEL (overridable via SIBYL_AGENT_MODEL)
   fetchPromises: async (projectId) => { /* ... */ },
   fetchRecentEvents: async (projectId, limit) => { /* ... */ },
 });
@@ -83,5 +83,8 @@ src/
 | Variable | Required | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | API key for Claude |
-| `SIBYL_DISABLE_AI` | No | Set to `true` to disable all AI features |
+| `SIBYL_DISABLE_AI` | No | Truthy (`1`/`true`/`yes`/`on`) disables all AI features |
+| `SIBYL_AGENT_MODEL` | No | Model ID override (default: `DEFAULT_MODEL` in `src/models.ts`) |
+| `SIBYL_AGENT_CACHE_DIR` | No | Response cache directory (default: `~/.sibyl/agent-cache`) |
+| `SIBYL_AGENT_BUDGET_FILE` | No | Per-org spend store (default: `~/.sibyl/agent-budget.json`) |
 | `SIBYL_LOCAL_LLM_URL` | No | Route AI through a customer-hosted endpoint |
