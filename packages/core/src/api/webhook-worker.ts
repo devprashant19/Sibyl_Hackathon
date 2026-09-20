@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 
 export interface WebhookEvent {
   eventId: string;
-  eventType: 'run.completed' | 'promise.failed' | 'promise.recovered';
+  eventType: 'session.completed' | 'run.completed' | 'promise.failed' | 'promise.recovered';
   timestamp: string;
   data: any;
 }
@@ -18,6 +18,8 @@ export class WebhookWorker {
   private queue: { event: WebhookEvent, sub: WebhookSubscription, attempts: number }[] = [];
   private subscriptions: WebhookSubscription[] = [];
   private processing = false;
+
+  constructor(private deliveryTimeoutMs = 10_000) {}
 
   public registerSubscription(sub: WebhookSubscription) {
     this.subscriptions.push(sub);
@@ -72,10 +74,15 @@ export class WebhookWorker {
       .digest('hex');
 
     const res = await fetch(sub.url, {
+      // Without a timeout one endpoint that accepts the connection and never answers stalls the
+      // whole queue, since deliveries are processed one at a time.
+      signal: AbortSignal.timeout(this.deliveryTimeoutMs),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-sibyl-signature': signature
+        'x-sibyl-signature': signature,
+        'x-sibyl-event': event.eventType,
+        'x-sibyl-delivery': event.eventId
       },
       body: payloadStr
     });

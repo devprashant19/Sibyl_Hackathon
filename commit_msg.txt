@@ -1,4 +1,0 @@
-test(core): refactor coverage for e2e-race.test
-
-Additional updates:
-- test(core): refactor coverage for search-benchmark.test
