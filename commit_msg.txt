@@ -1,4 +1,0 @@
-Initialize monorepo root and build tooling
-
-Additional updates:
-- Scaffold core TypeScript packages and fault drivers

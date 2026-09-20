@@ -1,0 +1,3 @@
+name: sibyl-infra
+runtime: nodejs
+description: Infrastructure for Sibyl
