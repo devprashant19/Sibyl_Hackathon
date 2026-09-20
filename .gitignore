@@ -31,3 +31,9 @@ pgdata/
 coverage/
 packages/e2e/playwright-report/
 packages/e2e/test-results/
+
+# Python
+__pycache__/
+
+# Java build output
+target/
