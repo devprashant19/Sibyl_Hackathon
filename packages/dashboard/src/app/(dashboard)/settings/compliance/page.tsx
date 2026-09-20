@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Card } from "@sibyl/ui";
+import { Button, Card } from "@sibyl/ui";
+import { PreviewBanner } from "../../../../components/PreviewBanner";
 
 export default function CompliancePage() {
   
@@ -20,41 +21,9 @@ export default function CompliancePage() {
     );
   }
 
-  const handleDownload = () => {
-    // In production, this would hit GET /api/v1/compliance/report
-    // which calls ComplianceReportGenerator.generateReport() and returns a file blob.
-    
-    const mockReport = `# Security & Compliance Evidence Report
-**Organization**: Acme Corp
-**Report Generated**: ${new Date().toISOString()}
-
-## 1. Logical and Physical Access Controls (CC6.1)
-- **Single Sign-On (SSO)**: Enabled (Enforced)
-- **Provisioning Model**: Active Directory Sync via SCIM 2.0.
-
-## 2. Role-Based Access Control (CC6.3)
-Enforces strict RBAC matrices (OWNER, ADMIN, MEMBER, VIEWER).
-
-## 3. System Monitoring & Audit Trails (CC7.1)
-All security-relevant mutations are written to an immutable append-only audit log.
-
-## 4. Data Retention & Lifecycle (CC6.6)
-- **Data Retention Policy**: 30 Days (Oracle Tier)
-`;
-
-    const blob = new Blob([mockReport], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sibyl-compliance-report-${new Date().toISOString().split('T')[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="flex flex-col h-full w-full">
+      <PreviewBanner detail="Posture values below are examples; no report is generated." />
       <div className="border-b border-ink-3 p-6 bg-ink-2 shrink-0">
         <div className="max-w-5xl mx-auto">
           <h1 className="font-display text-2xl text-gold">Security & Compliance</h1>
@@ -92,9 +61,9 @@ All security-relevant mutations are written to an immutable append-only audit lo
             <p className="text-sm text-muted mb-6">
               Generates a comprehensive Markdown document mapping your current configuration to SOC 2 Trust Services Criteria (CC6.1, CC6.3, CC6.6, CC7.1).
             </p>
-            <button onClick={handleDownload} className="w-full py-2 rounded bg-gold text-ink hover:bg-gold/90 font-bold transition-colors">
-              Download Report (.md)
-            </button>
+            <Button variant="primary" disabled className="w-full" title="Not available in this preview">
+              Download Report (not available yet)
+            </Button>
           </Card>
           
         </div>

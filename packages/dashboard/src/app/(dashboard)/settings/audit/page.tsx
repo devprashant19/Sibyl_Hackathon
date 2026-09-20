@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { Badge, Card } from "@sibyl/ui";
-// In reality, this would be fetched via tRPC/REST from `@sibyl-core`
+import { PreviewBanner } from "../../../../components/PreviewBanner";
+// In reality, this would be fetched via tRPC/REST from `@sibyl/core`
 // using AuditLogger.getLogs(orgId) and checking RBAC.hasPermission(role, 'view_audit_logs')
 
 const mockLogs = [
@@ -31,6 +32,7 @@ export default function AuditLogsPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
+      <PreviewBanner detail="No audit-log endpoint exists yet; these entries are examples." />
       <div className="border-b border-ink-3 p-6 bg-ink-2 shrink-0">
         <div className="max-w-5xl mx-auto">
           <h1 className="font-display text-2xl text-gold">Audit Logs</h1>
