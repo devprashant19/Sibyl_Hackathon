@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { Card, ProgressTrack, Badge } from "@sibyl/ui";
+import { PreviewBanner } from "../../../components/PreviewBanner";
+import { formatCount } from "../../../lib/format";
 
+// Sample data only: the API has no cross-project analytics endpoint yet.
 const MOCK_PROJECTS = [
   { name: "Checkout Service", totalRuns: 14050, mtbf: "72 hours", passRate: 98.2, trend: "up" },
   { name: "Billing API", totalRuns: 8900, mtbf: "14 hours", passRate: 92.5, trend: "down" },
@@ -14,6 +17,8 @@ export default function Analytics() {
   const orgPassRate = 88.6; // Aggregate mock
 
   return (
+    <>
+    <PreviewBanner detail="There is no analytics endpoint yet; see Run Explorer and Promise Trends for real data." />
     <div className="p-8 max-w-6xl mx-auto space-y-12">
       <header className="flex justify-between items-end">
         <div>
@@ -37,7 +42,7 @@ export default function Analytics() {
                   {p.name}
                   {p.passRate < 80 && <Badge variant="fail" className="ml-3">Needs Attention</Badge>}
                 </h3>
-                <span className="text-sm text-muted font-mono">{p.totalRuns.toLocaleString()} simulation runs</span>
+                <span className="text-sm text-muted font-mono">{formatCount(p.totalRuns)} simulation runs</span>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-mono text-parchment">{p.passRate}%</div>
@@ -72,5 +77,6 @@ export default function Analytics() {
         ))}
       </div>
     </div>
+    </>
   );
 }
