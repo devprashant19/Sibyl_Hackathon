@@ -135,7 +135,10 @@ export async function replayRun(loaded: LoadedConfig, stored: { seed: string; ru
   }
 
   // Timestamps are wall-clock under a real-time clock, so compare what was decided, not when.
-  const shape = (events?: any[]) => (events ?? []).map(e => JSON.stringify({ domain: e.domain, payload: e.payload }));
+  // Loopback ports are ephemeral (a test server listens on port 0), so they differ between processes.
+  const normalize = (value: unknown) =>
+    JSON.stringify(value).replace(/(\/\/(?:127\.0\.0\.1|localhost|\[::1\])):\d+/g, '$1:*');
+  const shape = (events?: any[]) => (events ?? []).map(e => normalize({ domain: e.domain, fault: e.fault, payload: e.payload }));
   const originalEvents = stored.events;
   const timelineMatches = originalEvents === undefined ? null : JSON.stringify(shape(originalEvents)) === JSON.stringify(shape(replayed.events));
 

@@ -1,0 +1,4 @@
+chore(cli): refactor package dependencies
+
+Additional updates:
+- refactor(cli): improve index implementation
