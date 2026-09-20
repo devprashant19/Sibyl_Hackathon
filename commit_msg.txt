@@ -1,0 +1,4 @@
+chore(infra): update infrastructure configuration for versions
+
+Additional updates:
+- chore(infra): update infrastructure configuration for terraform.tfvars

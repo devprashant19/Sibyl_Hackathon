@@ -1,0 +1,12 @@
+{
+  // Type-checks the examples against the current @sibyl/core sources:
+  //   cd packages/core && npx tsc -p examples/tsconfig.json
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["**/*.ts"]
+}
