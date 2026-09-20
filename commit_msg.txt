@@ -1,0 +1,4 @@
+refactor(fault-drivers): improve index implementation
+
+Additional updates:
+- chore(fault-drivers): update configuration for tsconfig
