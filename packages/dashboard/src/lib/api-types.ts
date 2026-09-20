@@ -60,6 +60,8 @@ export interface PromiseResult {
 interface EventBase<D extends FaultDomain, P> {
   domain: D;
   id?: string;
+  /** The fault a driver injected into this operation, e.g. "SLOW_RESPONSE". */
+  fault?: string;
   /** Epoch milliseconds. */
   timestamp: number;
   payload: P;

@@ -216,6 +216,11 @@ export function RunDetail({ run, isLoading, error, onRetry }: RunDetailProps) {
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {event.domain}
                   </Badge>
+                  {event.fault && (
+                    <Badge variant="fail" className="font-mono text-[10px]" data-testid="timeline-fault">
+                      {event.fault}
+                    </Badge>
+                  )}
                   <span className="text-xs text-muted font-mono ml-auto">+{event.timestamp - firstTimestamp}ms</span>
                 </div>
                 <p className="mt-1 font-mono text-sm text-parchment break-all">{summarizeEvent(event)}</p>
