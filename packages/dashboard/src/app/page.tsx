@@ -13,7 +13,7 @@ const CONSOLE_LINES = [
   { t: 'dim', v: 'gateway sent "pending" · no handler existed · idempotency key locked payment out\n' }
 ];
 
-const TABS = ['home', 'product', 'pricing', 'console'] as const;
+const TABS = ['home', 'product', 'console'] as const;
 
 export default function MarketingLandingPage() {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -137,45 +137,7 @@ export default function MarketingLandingPage() {
           </div>
         </section>
 
-        {/* PRICING */}
-        <section id="page-pricing">
-          <div className="font-mono text-xs text-[#caa53a] uppercase tracking-[0.14em] mb-4">Pricing</div>
-          <h2 className="font-serif text-4xl font-semibold mb-4">Priced per service.</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-10">
-            <div className="bg-[#12162c] border border-white/10 p-8 rounded-2xl">
-              <div className="font-mono text-xs text-[#caa53a] uppercase tracking-widest mb-3">Free</div>
-              <h3 className="font-serif text-2xl font-semibold mb-2">Seer</h3>
-              <div className="text-3xl font-bold mb-6">$0<span className="text-base text-[#9aa0c0] font-normal"> forever</span></div>
-              <ul className="text-sm text-[#9aa0c0] space-y-4 mb-8">
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>1 project</li>
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>Unlimited runs</li>
-              </ul>
-            </div>
 
-            <div className="bg-[#12162c] border border-[#caa53a] p-8 rounded-2xl shadow-[0_0_30px_rgba(202,165,58,0.15)] relative transform md:-translate-y-2">
-              <div className="font-mono text-xs text-[#caa53a] uppercase tracking-widest mb-3">Most Popular</div>
-              <h3 className="font-serif text-2xl font-semibold mb-2">Oracle</h3>
-              <div className="text-3xl font-bold mb-6">$99<span className="text-base text-[#9aa0c0] font-normal"> /service/mo</span></div>
-              <ul className="text-sm text-[#9aa0c0] space-y-4 mb-8">
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>Unlimited projects</li>
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>MCTS Search</li>
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>Slack/PagerDuty</li>
-              </ul>
-              <Link href="/runs" className="inline-block text-center w-full bg-[#caa53a] text-[#1a1200] font-bold py-3 rounded-lg hover:bg-[#dcb949]">Start free trial</Link>
-            </div>
-
-            <div className="bg-[#12162c] border border-white/10 p-8 rounded-2xl">
-              <div className="font-mono text-xs text-[#caa53a] uppercase tracking-widest mb-3">Enterprise</div>
-              <h3 className="font-serif text-2xl font-semibold mb-2">Pythia</h3>
-              <div className="text-3xl font-bold mb-6">Custom</div>
-              <ul className="text-sm text-[#9aa0c0] space-y-4 mb-8">
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>VPC Deployment</li>
-                <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>SAML SSO & SCIM</li>
-              </ul>
-            </div>
-          </div>
-        </section>
 
         {/* CONSOLE */}
         <section id="page-console">
