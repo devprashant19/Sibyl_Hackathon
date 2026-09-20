@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/api" },
+    { "path": "./packages/worker" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/agent" },
+    { "path": "./packages/fault-drivers/http" },
+    { "path": "./packages/fault-drivers/db" },
+    { "path": "./packages/fault-drivers/queue" },
+    { "path": "./packages/fault-drivers/grpc" },
+    { "path": "./packages/fault-drivers/filesystem" },
+    { "path": "./packages/fault-drivers/clock" },
+    { "path": "./packages/fault-drivers/process" },
+    { "path": "./infra" }
+  ]
+}
