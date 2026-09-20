@@ -1,4 +1,0 @@
-docs: update documentation for node
-
-Additional updates:
-- chore(infra): update infrastructure configuration for README

@@ -1,14 +1,15 @@
 resource "kubernetes_deployment" "sibyl_worker" {
   metadata {
     name      = "sibyl-worker"
-    namespace = kubernetes_namespace.sibyl.metadata[0].name
+    namespace = local.namespace
     labels = {
-      app = "sibyl-worker"
+      app    = "sibyl-worker"
+      region = var.region_name
     }
   }
 
   spec {
-    # Replicas managed by KEDA ScaledObject, not hardcoded here
+    # Replicas are managed by the KEDA ScaledObject; Terraform must not reset them.
     selector {
       match_labels = {
         app = "sibyl-worker"
@@ -18,22 +19,38 @@ resource "kubernetes_deployment" "sibyl_worker" {
     template {
       metadata {
         labels = {
-          app = "sibyl-worker"
+          app    = "sibyl-worker"
+          region = var.region_name
         }
       }
 
       spec {
         container {
           name  = "worker"
-          image = "sibyl/worker:latest"
+          image = var.image
 
           env {
-            name  = "REDIS_URL"
-            value = "redis://redis.sibyl-system.svc.cluster.local:6379"
+            name = "REDIS_URL"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.redis.metadata[0].name
+                key  = "REDIS_URL"
+              }
+            }
+          }
+          # Read by KEDA (passwordFromEnv), not by the worker.
+          env {
+            name = "REDIS_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.redis.metadata[0].name
+                key  = "REDIS_PASSWORD"
+              }
+            }
           }
           env {
             name  = "WORKER_CONCURRENCY"
-            value = "10"
+            value = tostring(var.worker_concurrency)
           }
 
           resources {
@@ -49,5 +66,12 @@ resource "kubernetes_deployment" "sibyl_worker" {
         }
       }
     }
+  }
+
+  # KEDA may scale to zero, so don't wait for a rollout, and don't fight KEDA over replicas.
+  wait_for_rollout = false
+
+  lifecycle {
+    ignore_changes = [spec[0].replicas]
   }
 }
