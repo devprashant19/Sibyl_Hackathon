@@ -1,77 +1,69 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-If you discover a security vulnerability in Sibyl, **please do not open a public GitHub issue.** Instead, report it responsibly:
+Please do not open a public issue. Email the maintainer listed on the repository with a description,
+steps to reproduce, and the affected commit. Expect an acknowledgement within a few days; this is a
+small project, not a staffed security team.
 
-1. **Email:** Send a detailed report to `security@sibyl.dev` (or the maintainer's contact listed in the repository).
-2. **Include:** A clear description of the vulnerability, steps to reproduce, and any relevant logs or screenshots.
-3. **Response time:** We will acknowledge receipt within 48 hours and aim to provide a fix or mitigation within 7 business days for critical issues.
+Only the latest `main` is supported.
 
-## Supported Versions
+## What Sibyl does that has security consequences
 
-| Version | Supported |
-|---|---|
-| Latest `main` | ✅ Active development |
-| Tagged releases | ✅ Security patches backported |
+Sibyl's main path is a CLI that **executes your `sibyl.config.ts`** and **patches I/O globals in its own
+process** to inject faults, plus an optional API that **stores captured events**. Each has a consequence:
 
-## Security Architecture
+| Behaviour | Consequence | What to do |
+|---|---|---|
+| `sibyl run` imports and runs the config file | A config is code with your privileges | Review configs like scripts |
+| The HTTP driver patches `fetch` / `http.request` for the session | Every request in that process can be faulted | Run against a test process, never production |
+| Failing runs store their captured events, which include request URLs and whatever drivers record | Sessions can contain sensitive data | Don't point Sibyl at systems holding real customer data; control who can read the API |
+| `sibyl explain` / `investigate` / `retro` send events, schedules and (with `--suggest-fix`) source files to Anthropic | Data leaves your machine | Leave `ANTHROPIC_API_KEY` unset, or set `SIBYL_DISABLE_AI=1` |
 
-Sibyl is designed for deployment in high-security enterprise environments. The following security controls are built into the platform:
+## Controls that exist
 
-### Authentication
+### API (`packages/api`)
 
-- **Session-based authentication** with secure, HTTP-only cookies.
-- **SAML 2.0 and OIDC SSO** via `@boxyhq/saml-jackson` (Pythia tier). We deliberately chose an established library over hand-rolled SAML to avoid the well-documented class of vulnerabilities in custom SAML implementations (XML signature wrapping, assertion replay, etc.).
-- **SCIM 2.0** for automated user provisioning and deprovisioning from enterprise identity providers.
+- **Write authentication.** With `SIBYL_API_TOKEN` set, every `POST` requires `Authorization: Bearer
+  <token>`, compared in constant time over SHA-256 digests.
+- **Loopback by default.** Binds `127.0.0.1` unless `SIBYL_API_HOST` says otherwise, and warns at startup
+  when bound elsewhere without a token.
+- **Validation.** Every write is parsed against the zod schemas in `packages/shared`; invalid input is a
+  400 with the validation issues, malformed JSON a 400, bodies over 50 MB a 413. Errors never include
+  stack traces or paths.
+- **Path safety.** Session ids are validated as UUIDs before becoming file names; the store asserts it
+  again before building a path.
+- **Atomic, fault-tolerant storage.** Temp file + rename; an unreadable file is skipped, not fatal.
+- **Signed webhooks.** `SIBYL_WEBHOOK_URL` refuses to start without `SIBYL_WEBHOOK_SECRET`; each delivery
+  carries an HMAC-SHA256 signature and times out after 10 s.
+- **Retention.** `SIBYL_RETENTION_DAYS` deletes old sessions from memory and disk.
 
-### Authorization (RBAC)
+### AI agents (`packages/agent`)
 
-Four roles enforced at the API middleware layer:
+- `SIBYL_DISABLE_AI` accepts `1`, `true`, `yes`, `on` in any case and raises a typed `AIDisabledError`
+  (it used to honour only the exact string `true`).
+- Spend is capped per organisation, checked against a worst-case estimate before each call, and the
+  budget store **fails closed** when corrupt instead of resetting spend.
+- The response cache is keyed by agent, model and organisation, so one organisation never receives
+  another's cached answer.
+- The investigator's tool loop is bounded (8 turns) and clamps model-supplied parameters.
 
-| Role | Capabilities |
-|---|---|
-| **Owner** | Full control — billing, org deletion, role management |
-| **Admin** | Manage projects, API keys, view audit logs, manage members |
-| **Member** | Create/run simulations, manage own promises and schedules |
-| **Viewer** | Read-only access to runs and results — cannot manage API keys or promises |
+### Enterprise libraries (`@sibyl/core/enterprise`)
 
-### Audit Logging
+These are **libraries, not features of the running API** — nothing routes requests to them yet.
 
-- **Immutable, append-only audit log** recording every security-relevant action:
-  - API key created / revoked
-  - Promise created / edited / deleted
-  - Project created / deleted
-  - User invited / removed / role changed
-  - SSO configuration changed
-  - Data retention policy changed
-- Audit logs are viewable by org admins in the dashboard.
-- The `AuditLogger` class (`packages/core/src/audit/logger.ts`) is the single source of truth.
+- **SSO** (SAML Jackson) fails closed: without a working database it refuses `authorize` and `callback`.
+  It previously returned an `admin@<tenant>` profile for any callback when the database was unreachable.
+  The OAuth `state` is random, single-use, bound to the tenant and expires after 10 minutes.
+- **SCIM** fails closed the same way; it previously reported users as provisioned without storing them.
+- **Audit log** entries are frozen on write and copied on read; the default sink is in-memory and bounded.
+- **RBAC** defines four roles and their permissions; no API route enforces it.
 
-### Data Isolation
+## What is not protected
 
-- **Simulation sandboxing:** Every simulation run executes inside a Docker-in-Docker container with its own network namespace. Cross-run data leakage is structurally prevented.
-- **Multi-tenant isolation:** All database queries are scoped by `orgId`. There is no code path that can access another organization's data.
-- **Data retention:** Configurable per-org retention policies with automated purging. The retention worker (`packages/worker`) has a dry-run mode for testing before enforcement.
-
-### Air-Gapped Deployment
-
-For zero-egress environments:
-
-- `SIBYL_ENTERPRISE_SELF_HOSTED=true` — Disables all outbound calls to Stripe and telemetry services.
-- `SIBYL_DISABLE_AI=true` — Disables all outbound calls to Anthropic's API. AI features throw an explicit error rather than silently degrading.
-- `SIBYL_LOCAL_LLM_URL` — Optional: route AI features through a customer-provided, internally-hosted LLM endpoint.
-
-### Compliance
-
-- **SOC 2 evidence generator** (`packages/core/src/audit/compliance.ts`) produces exportable reports covering:
-  - RBAC configuration and enforcement
-  - Audit log completeness and integrity
-  - Data retention policy enforcement
-  - Control mappings for SOC 2 Type II readiness
-
-### Dependencies
-
-- We use `pnpm audit` in CI to check for known vulnerabilities in dependencies.
-- Critical dependencies (cryptographic primitives, auth libraries) are pinned to exact versions.
-- The PRNG implementation (`packages/core/src/prng.ts`) uses Mulberry32 — this is a fast, deterministic generator for simulation purposes and is **not** used for any security-sensitive operations. All security-sensitive randomness uses Node.js `crypto.randomUUID()`.
+- **Reads on the API are unauthenticated.** Anyone who can reach it can read every session. Put it behind
+  an authenticating proxy on any shared network.
+- **No multi-tenancy.** There are no organisations in the API; every session is visible to every reader.
+- **No sandboxing on the main path.** Runs execute in the CLI's process. The Docker sandbox and worker are
+  scaffolding (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §6.3).
+- **No local LLM endpoint.** Earlier documents mentioned `SIBYL_LOCAL_LLM_URL`; it was never implemented.
