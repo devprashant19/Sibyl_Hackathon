@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as realCp from 'child_process';
 import { ProcessFaultDriver } from '../src/index';
 
@@ -69,7 +69,7 @@ describe('Process Fault Driver', () => {
 
     const child = cp.spawn('node', ['-e', 'setTimeout(() => {}, 5000)']);
     
-    const { code, signal } = await new Promise<any>((resolve) => {
+    const { signal } = await new Promise<any>((resolve) => {
       child.on('close', (code, signal) => resolve({ code, signal }));
     });
 
