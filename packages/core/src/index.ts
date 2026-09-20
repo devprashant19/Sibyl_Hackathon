@@ -5,3 +5,8 @@ export * from './engine';
 export * from './promise';
 export * from './async-context';
 export * from './orchestrator';
+export * from './search/strategy';
+export * from './search/ucb1';
+export * from './search/mcts';
+export * from './search/bayesian';
+export * from './importers/otlp';
