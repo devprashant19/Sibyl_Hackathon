@@ -1,0 +1,4 @@
+feat: analytics and promise marketplace views
+
+Additional updates:
+- feat: AI investigator agent using claude API

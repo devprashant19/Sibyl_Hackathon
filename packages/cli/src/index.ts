@@ -5,7 +5,7 @@ import * as path from 'path';
 import cliProgress from 'cli-progress';
 // Need dynamic import for the user's config
 // import { SearchOrchestrator } from '@sibyl-core'; // Stub
-import { SibylInvestigator } from '@sibyl-agent';
+import { SibylInvestigator, SibylExplainer, SibylPatcher } from '@sibyl-agent';
 
 const program = new Command();
 
@@ -67,6 +67,7 @@ program
   .option('--iterations <number>', 'Number of simulation runs', '100')
   .option('--concurrency <number>', 'Parallel execution limit', '1')
   .option('--local-only', 'Do not upload results to the API')
+  .option('--suggest-fix <filepaths...>', 'Files to analyze for suggested patches')
   .action(async (options) => {
     console.log(chalk.blue.bold(`\n👁️  Sibyl Engine Started`));
     console.log(chalk.gray(`Target: ${options.target} | Iterations: ${options.iterations}`));
@@ -97,6 +98,64 @@ program
 
     if (failures > 0) {
       console.log(chalk.red.bold(`\n❌ Found ${failures} failing permutations.`));
+      
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (apiKey) {
+        console.log(chalk.magenta('\n🤖 Auto-analyzing root cause for the first failure...'));
+        try {
+          const explainer = new SibylExplainer({ apiKey });
+          // Mock telemetry for the CLI
+          const mockEvents = [{ type: 'HTTP_REQUEST', target: 'api.stripe.com', status: 'TIMEOUT' }];
+          const mockEvidence = { promiseName: 'no_500s', state: 'FAILED' };
+          
+          const explanation = await explainer.explainFailure('mock-run-id', mockEvents, mockEvidence);
+          
+          console.log(chalk.gray('--- AI Root Cause Analysis ---'));
+          console.log(chalk.white(explanation));
+          console.log(chalk.gray('------------------------------'));
+
+          if (options.suggestFix && options.suggestFix.length > 0) {
+            console.log(chalk.magenta('\n🛠️  Generating suggested patch...'));
+            const patcher = new SibylPatcher({ apiKey });
+            
+            // Read requested files
+            const fileContents: Record<string, string> = {};
+            for (const fp of options.suggestFix) {
+              if (fs.existsSync(fp)) {
+                fileContents[fp] = fs.readFileSync(fp, 'utf-8');
+              } else {
+                console.log(chalk.yellow(`Warning: Could not read file ${fp}`));
+              }
+            }
+
+            if (Object.keys(fileContents).length > 0) {
+              const patchResult = await patcher.suggestFix(explanation, fileContents);
+              
+              const handoffDoc = `# Sibyl AI Handoff
+> Note: Pass this document to your IDE agent (Cursor, Claude Code, Copilot) to automatically apply the fix.
+
+## Prompt for Agent
+Please apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.
+**Explanation of fix:** ${patchResult.explanation}
+
+## Patch
+\`\`\`diff
+${patchResult.unifiedDiff}
+\`\`\`
+`;
+              const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
+              fs.writeFileSync(handoffPath, handoffDoc);
+              console.log(chalk.green(`✔ Handoff document generated: ${handoffPath}`));
+              console.log(chalk.cyan(`You can pass this file to Cursor/Claude Code to auto-apply the fix.`));
+            }
+          }
+        } catch (err: any) {
+          console.log(chalk.red(`Failed to generate explanation: ${err.message}`));
+        }
+      } else {
+        console.log(chalk.gray('Tip: Set ANTHROPIC_API_KEY to automatically diagnose failures.'));
+      }
+      
     } else {
       console.log(chalk.green.bold(`\n✔ 0 failures found. Code is robust.`));
     }
@@ -114,6 +173,7 @@ program
   .description('Runs the engine in CI mode (no UI, non-zero exit on failure)')
   .option('--target <script>', 'Path to the sibyl config', 'sibyl.config.ts')
   .option('--iterations <number>', 'Number of simulation runs', '100')
+  .option('--suggest-fix <filepaths...>', 'Files to analyze for suggested patches')
   .action(async (options) => {
     console.log(`[INFO] Starting Sibyl CI Pipeline (${options.iterations} iterations)`);
     
@@ -125,6 +185,38 @@ program
 
     if (failures > 0) {
       console.error(`[ERROR] Discovered ${failures} broken invariants! Failing CI.`);
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (apiKey) {
+        console.log('\n[INFO] Auto-analyzing root cause for the first failure...');
+        try {
+          const explainer = new SibylExplainer({ apiKey });
+          const explanation = await explainer.explainFailure('mock-run-id', [{ type: 'HTTP_REQUEST' }], { promise: 'no_500s' });
+          console.log('--- AI Root Cause Analysis ---');
+          console.log(explanation);
+          console.log('------------------------------');
+
+          if (options.suggestFix && options.suggestFix.length > 0) {
+            console.log('\n[INFO] Generating suggested patch...');
+            const patcher = new SibylPatcher({ apiKey });
+            const fileContents: Record<string, string> = {};
+            for (const fp of options.suggestFix) {
+              if (fs.existsSync(fp)) fileContents[fp] = fs.readFileSync(fp, 'utf-8');
+            }
+
+            if (Object.keys(fileContents).length > 0) {
+              const patchResult = await patcher.suggestFix(explanation, fileContents);
+              const handoffDoc = `# Sibyl AI Handoff\n\n## Prompt for Agent\nPlease apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.\n**Explanation:** ${patchResult.explanation}\n\n## Patch\n\`\`\`diff\n${patchResult.unifiedDiff}\n\`\`\`\n`;
+              const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
+              fs.writeFileSync(handoffPath, handoffDoc);
+              console.log(`[SUCCESS] Handoff document generated: ${handoffPath}`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`[WARN] Failed to generate explanation: ${err.message}`);
+        }
+      }
+
       process.exit(1);
     } else {
       console.log(`[SUCCESS] 0 failures discovered.`);

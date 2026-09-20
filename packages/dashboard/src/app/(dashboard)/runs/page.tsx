@@ -7,6 +7,7 @@ import { useLiveProgress } from "../../../hooks/useLiveProgress";
 
 export default function RunExplorer() {
   const [selectedRunId, setSelectedRunId] = React.useState<string>(mockRuns[0].id);
+  const [isExplaining, setIsExplaining] = React.useState<boolean>(false);
 
   // Hardcode session ID and fake API URL for this UI-only phase
   const sessionId = "session-12345";
@@ -219,7 +220,7 @@ export default function RunExplorer() {
             {/* Root Cause & Discussion */}
             {selectedRun.status === "FAILED" && (
               <div className="space-y-6">
-                {selectedRun.rootCauseExplanation && (
+                {selectedRun.rootCauseExplanation ? (
                   <Card className="p-6 bg-ember/5 border-ember/20">
                     <h3 className="font-display text-lg text-ember mb-2 flex items-center">
                       <span className="mr-2">⚡</span> AI Root Cause Analysis
@@ -227,6 +228,36 @@ export default function RunExplorer() {
                     <p className="text-sm text-parchment leading-relaxed font-body">
                       {selectedRun.rootCauseExplanation}
                     </p>
+                  </Card>
+                ) : (
+                  <Card className="p-6 bg-ink flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-gold text-2xl">
+                      🤖
+                    </div>
+                    <div>
+                      <h3 className="font-display text-lg text-parchment mb-1">Diagnose this Failure</h3>
+                      <p className="text-sm text-muted">Use the Sibyl Explainer Agent to analyze the event timeline and determine the root cause.</p>
+                    </div>
+                    <button 
+                      className={`px-4 py-2 bg-gold/10 text-gold border border-gold/30 rounded-md font-semibold text-sm transition-colors hover:bg-gold/20 flex items-center space-x-2 ${isExplaining ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={isExplaining}
+                      onClick={() => {
+                        setIsExplaining(true);
+                        setTimeout(() => {
+                          alert("Mock: Call to SibylExplainer finished. The UI would update with the validated narrative.");
+                          setIsExplaining(false);
+                        }, 2000);
+                      }}
+                    >
+                      {isExplaining ? (
+                        <>
+                          <span className="animate-spin mr-2">⚙️</span>
+                          <span>Analyzing telemetry...</span>
+                        </>
+                      ) : (
+                        <span>✨ Explain this failure</span>
+                      )}
+                    </button>
                   </Card>
                 )}
 
