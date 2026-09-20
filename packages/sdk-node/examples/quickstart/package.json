@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@sibyl/sdk-node": "workspace:*",
-    "@sibyl-cli": "workspace:*",
+    "@sibyl/cli": "workspace:*",
     "express": "^4.19.2",
     "pg": "^8.11.3"
   },

@@ -6,7 +6,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@sibyl-core": "workspace:*",
-    "@sibyl-shared": "workspace:*"
+    "@sibyl/core": "workspace:*",
+    "@sibyl/shared": "workspace:*"
   }
 }

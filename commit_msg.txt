@@ -1,4 +1,0 @@
-feat(fault-drivers): refactor resource driver implementation (watchdog)
-
-Additional updates:
-- test(fault-drivers): refactor coverage for resource.test
