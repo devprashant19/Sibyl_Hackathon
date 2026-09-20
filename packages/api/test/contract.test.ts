@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import {
   IngestEventsRequestSchema,
   ReportPromisesRequestSchema,
@@ -14,7 +15,7 @@ const schemas: Record<string, any> = {
 };
 
 describe('API Contract Tests', () => {
-  const fixturesDir = path.join(__dirname, 'contracts', 'fixtures');
+  const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'contracts', 'fixtures');
 
   if (!fs.existsSync(fixturesDir)) {
     console.warn('No contract fixtures found.');

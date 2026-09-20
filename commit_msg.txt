@@ -1,0 +1,4 @@
+refactor(api): improve app implementation
+
+Additional updates:
+- refactor(api): improve server implementation
