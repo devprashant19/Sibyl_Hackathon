@@ -1,38 +1,34 @@
 {
-  "name": "@sibyl-core",
+  "name": "@sibyl/core",
   "version": "0.0.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --build",
     "lint": "eslint .",
-    "test": "vitest run",
-    "run-api-server": "npx tsx src/api/server.ts"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@apollo/server": "^4.13.0",
     "@aws-sdk/client-s3": "^3.1121.0",
     "@boxyhq/saml-jackson": "^26.2.0",
     "@octokit/rest": "^22.0.1",
     "@opentelemetry/api": "^1.9.1",
-    "@sibyl-agent": "workspace:*",
-    "@sibyl-shared": "workspace:*",
-    "body-parser": "^2.3.0",
+    "@sibyl/shared": "workspace:*",
     "bullmq": "^6.3.2",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "graphql": "^17.0.2",
     "ioredis": "^6.0.0",
     "pg": "^8.11.3",
     "stripe": "^22.6.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/body-parser": "^1.19.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
     "@types/pg": "^8.11.0",
     "kafkajs": "^2.2.4",
     "tsx": "^4.23.13"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./enterprise": "./src/enterprise.ts",
+    "./queue": "./src/queue/index.ts",
+    "./retention": "./src/db/retention.ts"
   }
 }
