@@ -1,4 +1,12 @@
 export type RunStatus = 'COMPLETED' | 'FAILED' | 'RUNNING';
+export type TriageStatus = 'OPEN' | 'INVESTIGATING' | 'RESOLVED' | 'WONT_FIX';
+
+export interface Comment {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: string;
+}
 
 export interface SimulationRun {
   id: string;
@@ -6,6 +14,11 @@ export interface SimulationRun {
   timestamp: string;
   durationMs: number;
   environment: string;
+  assignee?: string | null;
+  triageStatus?: TriageStatus;
+  externalIssueUrl?: string | null;
+  rootCauseExplanation?: string | null;
+  comments?: Comment[];
 }
 
 export interface CapturedEvent {
@@ -18,10 +31,18 @@ export interface CapturedEvent {
 }
 
 export const mockRuns: SimulationRun[] = [
-  { id: 'run-9f3b1', status: 'FAILED', timestamp: '2026-08-30T10:23:45Z', durationMs: 4500, environment: 'DOCKER_CONTAINER' },
+  { 
+    id: 'run-9f3b1', status: 'FAILED', timestamp: '2026-08-30T10:23:45Z', durationMs: 4500, environment: 'DOCKER_CONTAINER',
+    triageStatus: 'OPEN',
+    assignee: null,
+    rootCauseExplanation: 'The database transaction deadlocked because the HTTP_TIMEOUT fault held the connection open for 2000ms while a competing background worker attempted to acquire a lock on the same `orders` row.',
+    comments: [
+      { id: 'c1', author: 'system', content: 'Run failed. Automated root cause analysis generated.', timestamp: '2026-08-30T10:23:50Z' }
+    ]
+  },
   { id: 'run-8c2a0', status: 'COMPLETED', timestamp: '2026-08-30T10:22:11Z', durationMs: 3100, environment: 'DOCKER_CONTAINER' },
   { id: 'run-7b1d9', status: 'COMPLETED', timestamp: '2026-08-30T10:20:05Z', durationMs: 2950, environment: 'DOCKER_CONTAINER' },
-  { id: 'run-6a0e8', status: 'FAILED', timestamp: '2026-08-30T10:18:22Z', durationMs: 1200, environment: 'DOCKER_CONTAINER' },
+  { id: 'run-6a0e8', status: 'FAILED', timestamp: '2026-08-30T10:18:22Z', durationMs: 1200, environment: 'DOCKER_CONTAINER', triageStatus: 'INVESTIGATING', assignee: 'Alice Engineer', externalIssueUrl: 'https://linear.app/sibyl/issue/SIB-102' },
   { id: 'run-5f9f7', status: 'COMPLETED', timestamp: '2026-08-30T10:15:10Z', durationMs: 3050, environment: 'DOCKER_CONTAINER' },
 ];
 
