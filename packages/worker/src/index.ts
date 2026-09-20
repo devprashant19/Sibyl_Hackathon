@@ -10,7 +10,11 @@ const connection = getConnection();
 const pub = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 const deps = {
-  redis: connection,
+  redis: {
+    set: connection.set.bind(connection),
+    get: connection.get.bind(connection),
+    executeLua: connection.eval.bind(connection),
+  },
   sandboxProvider: new DockerSandboxProvider(),
   publish: (channel: string, message: string) => pub.publish(channel, message),
   deadLetter: (job: JobLike) => getDeadLetterQueue().add(`dlq-${job.id}`, job.data, { jobId: `dlq-${job.id}` }),

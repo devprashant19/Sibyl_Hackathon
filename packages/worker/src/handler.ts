@@ -5,7 +5,7 @@ import type { SimulationRunJob, SandboxProvider } from '@sibyl/core/queue';
 export interface LockClient {
   set(key: string, value: string, px: 'PX', ttlMs: number, nx: 'NX'): Promise<'OK' | null>;
   get(key: string): Promise<string | null>;
-  eval(script: string, numKeys: number, ...args: string[]): Promise<unknown>;
+  executeLua(script: string, numKeys: number, ...args: string[]): Promise<unknown>;
 }
 
 export interface JobLike {
@@ -71,13 +71,13 @@ export function createRunHandler(deps: HandlerDeps) {
 
     try {
       await sandbox.start(['node', 'dist/sandbox-worker.js']);
-      await deps.redis.eval(COMPLETE_IF_OWNER, 1, key, token, COMPLETED);
+      await deps.redis.executeLua(COMPLETE_IF_OWNER, 1, key, token, COMPLETED);
       await job.updateProgress(100);
       log.log(`[Worker] Run ${runId} completed successfully.`);
     } catch (err) {
       log.error(`[Worker] Run ${runId} failed:`, err);
       // Release only our own lock, so a retry can start — never someone else's.
-      await deps.redis.eval(RELEASE_IF_OWNER, 1, key, token);
+      await deps.redis.executeLua(RELEASE_IF_OWNER, 1, key, token);
       throw err;
     } finally {
       await sandbox.stop().catch(() => {});

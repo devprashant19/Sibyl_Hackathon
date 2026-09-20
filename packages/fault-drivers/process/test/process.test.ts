@@ -26,14 +26,14 @@ describe('Process Fault Driver', () => {
     mockGetFaultDecision.mockReturnValue(null);
     
     const result = await new Promise<string>((resolve, reject) => {
-      cp.exec('node -e "console.log(1+1)"', (err, stdout) => {
+      cp.execFile('node', ['-e', 'console.log(1+1)'], (err, stdout) => {
         if (err) return reject(err);
         resolve(stdout.trim());
       });
     });
     
     expect(result).toBe('2');
-    expect(mockGetFaultDecision).toHaveBeenCalledWith('PROCESS', { command: 'node -e "console.log(1+1)"' });
+    expect(mockGetFaultDecision).toHaveBeenCalledWith('PROCESS', { command: 'node' });
     expect(mockRecordEvent).not.toHaveBeenCalled();
   });
 
@@ -46,7 +46,7 @@ describe('Process Fault Driver', () => {
     // Run a script that sleeps for 30 seconds
     const start = Date.now();
     const err: any = await new Promise((resolve) => {
-      cp.exec('node -e "setTimeout(() => {}, 30000)"', (err) => resolve(err));
+      cp.execFile('node', ['-e', 'setTimeout(() => {}, 30000)'], (err) => resolve(err));
     });
     const duration = Date.now() - start;
 

@@ -154,10 +154,10 @@ export class SearchOrchestrator {
       for (let i = 0; i < 50; i++) {
         decisions += rollHits(rng.next(), sched.probability) ? '1' : '0';
       }
-      const specHash = crypto.createHash('md5').update(JSON.stringify(sched.spec)).digest('hex');
+      const specHash = crypto.createHash('sha256').update(JSON.stringify(sched.spec)).digest('hex');
       parts.push(`${sched.spec.domain}:${sched.probability}:${specHash}:${decisions}`);
     }
-    return crypto.createHash('md5').update(parts.join('|')).digest('hex');
+    return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
   }
 
   async run(): Promise<SearchResult> {

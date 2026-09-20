@@ -19,7 +19,7 @@ class FakeRedis implements LockClient {
   async get(key: string) {
     return this.store.get(key) ?? null;
   }
-  async eval(script: string, _numKeys: number, key: string, token: string, next?: string) {
+  async executeLua(script: string, _numKeys: number, key: string, token: string, next?: string) {
     if (this.store.get(key) !== token) return 0;
     if (script === RELEASE_IF_OWNER) this.store.delete(key);
     else this.store.set(key, next!);

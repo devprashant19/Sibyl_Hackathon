@@ -10,7 +10,7 @@ export function wrapChildProcess(cpModule: any, driver: ProcessFaultDriver): any
       const original = Reflect.get(target, prop, receiver);
       if (typeof original !== 'function') return original;
 
-      if (prop === 'spawn' || prop === 'exec' || prop === 'fork') {
+      if (prop === 'spawn' || prop === 'exec' || prop === 'fork' || prop === 'execFile') {
         return (...args: any[]) => {
           if (!driver.context) return original.apply(target, args);
 
@@ -62,7 +62,7 @@ export function wrapChildProcess(cpModule: any, driver: ProcessFaultDriver): any
 /**
  * Kills `child` so that the caller observes `signal`, and on Windows also its descendants.
  *
- * On Windows exec() and `shell: true` run the command under cmd.exe, and killing cmd.exe leaves the
+ * On Windows spawn with shell: true runs the command under cmd.exe, and killing cmd.exe leaves the
  * real process running with cmd's stdio pipes still open, so 'close' (and exec's callback) waits for it
  * to finish on its own. Windows has no cheap way to list a process's children before killing it
  * (wmic is gone, PowerShell/CIM takes 0.5-5s), and libuv only reports the signal if child.kill() itself

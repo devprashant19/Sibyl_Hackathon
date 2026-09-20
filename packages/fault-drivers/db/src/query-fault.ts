@@ -12,14 +12,13 @@ export function extractMetadata(args: any[]): { query: string; table?: string; l
 
   const labels: string[] = [];
   const labelRegex = /\/\*\s*sibyl-label:\s*([a-zA-Z0-9_-]+)\s*\*\//g;
-  let match;
-  while ((match = labelRegex.exec(queryString)) !== null) {
+  for (const match of queryString.matchAll(labelRegex)) {
     labels.push(match[1]);
   }
 
   let table: string | undefined;
   const tableRegex = /(?:FROM|INTO|UPDATE|JOIN)\s+([a-zA-Z0-9_]+)/i;
-  const tableMatch = tableRegex.exec(queryString);
+  const tableMatch = queryString.match(tableRegex);
   if (tableMatch) {
     table = tableMatch[1];
   }

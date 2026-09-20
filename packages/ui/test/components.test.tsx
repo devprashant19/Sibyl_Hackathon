@@ -23,7 +23,7 @@ describe("clampPercent", () => {
 describe("ProgressTrack", () => {
   const transformOf = (value: number) => {
     const html = renderToStaticMarkup(<ProgressTrack value={value} />);
-    return /translateX\((-?[\d.]+)%\)/.exec(html)?.[1];
+    return html.match(/translateX\((-?[\d.]+)%\)/)?.[1];
   };
 
   it("never produces a positive (invalid) offset for values above 100", () => {

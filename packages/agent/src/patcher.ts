@@ -22,11 +22,14 @@ const NO_EXPLANATION = "No explanation provided.";
  */
 export function parsePatchOutput(output: string, stoppedAtMaxTokens = false): PatchResult {
   const text = output.replace(/\r\n?/g, "\n");
-  const open = /```(?:diff|patch)[^\S\n]*\n/.exec(text);
+  const open = text.match(/```(?:diff|patch)[^\S\n]*\n/);
   if (!open) {
     return { unifiedDiff: NO_DIFF, explanation: NO_EXPLANATION, truncated: stoppedAtMaxTokens };
   }
 
+  if (open.index === undefined) {
+    return { unifiedDiff: NO_DIFF, explanation: NO_EXPLANATION, truncated: stoppedAtMaxTokens };
+  }
   const bodyStart = open.index + open[0].length;
   const closeIdx = text.indexOf("```", bodyStart);
   if (closeIdx === -1) {

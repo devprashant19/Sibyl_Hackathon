@@ -298,7 +298,7 @@ describe('Fault Driver Determinism Properties', () => {
         } as unknown as typeof realCp;
         const wrapped = driver.wrapChildProcess(mockCp);
         try { wrapped.spawn('ls'); } catch {}
-        try { wrapped.exec('ls'); } catch {}
+        try { wrapped.execFile('ls'); } catch {}
         try { wrapped.fork('script.js'); } catch {}
         await sleep(100); // let the injected kill timers fire
       },

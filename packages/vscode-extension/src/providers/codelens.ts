@@ -13,9 +13,8 @@ export class SibylCodeLensProvider implements vscode.CodeLensProvider {
 
     // A Sibyl config is `export default defineConfig({ ... })` (see `sibyl init`).
     const regex = /\bdefineConfig\s*\(/g;
-    let match: RegExpExecArray | null;
 
-    while ((match = regex.exec(text)) !== null) {
+    for (const match of text.matchAll(regex)) {
       const line = document.positionAt(match.index).line;
       const range = new vscode.Range(line, 0, line, 0);
 

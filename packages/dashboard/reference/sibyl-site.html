@@ -557,7 +557,7 @@
   var vi = 0;
 
   function typeLines(lines, done){
-    oracleBody.innerHTML = '';
+    oracleBody.textContent = '';
     var li = 0;
     function nextLine(){
       if (li >= lines.length){ if (done) done(); return; }
@@ -636,15 +636,27 @@
   var selectedId = null;
 
   function renderRunList(){
-    runListItems.innerHTML = '';
+    runListItems.textContent = '';
     runs.forEach(function(r){
       var row = document.createElement('div');
       row.className = 'run-row' + (r.id === selectedId ? ' selected' : '');
       row.setAttribute('role','listitem');
       row.setAttribute('tabindex','0');
-      row.innerHTML =
-        '<span class="badge ' + r.status + '">' + r.status.toUpperCase() + '</span>' +
-        '<span class="run-meta"><span class="id">' + r.id + '</span><span class="sub">' + r.label + ' · ' + r.when + '</span></span>';
+      var badge = document.createElement('span');
+      badge.className = 'badge ' + r.status;
+      badge.textContent = r.status.toUpperCase();
+      var meta = document.createElement('span');
+      meta.className = 'run-meta';
+      var idSpan = document.createElement('span');
+      idSpan.className = 'id';
+      idSpan.textContent = r.id;
+      var subSpan = document.createElement('span');
+      subSpan.className = 'sub';
+      subSpan.textContent = r.label + ' · ' + r.when;
+      meta.appendChild(idSpan);
+      meta.appendChild(subSpan);
+      row.appendChild(badge);
+      row.appendChild(meta);
       row.addEventListener('click', function(){ selectRun(r.id); });
       row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectRun(r.id); } });
       runListItems.appendChild(row);
@@ -653,24 +665,73 @@
 
   function renderDetail(run){
     if (!run){
-      detailPanel.innerHTML = '<p style="color:var(--muted);font-size:14px;">Select a run to see what Sibyl captured.</p>';
+      detailPanel.textContent = '';
+      var p = document.createElement('p');
+      p.style.color = 'var(--muted)';
+      p.style.fontSize = '14px';
+      p.textContent = 'Select a run to see what Sibyl captured.';
+      detailPanel.appendChild(p);
       return;
     }
-    var eventsHtml = run.events.map(function(e){
-      return '<div class="event' + (e.f ? ' faulted' : '') + '">' +
-        '<span class="pip"></span>' +
-        '<span class="desc"><span class="lbl">' + e.lbl + '</span> — ' + e.desc + '</span>' +
-        '<span class="ms">' + e.ms + '</span></div>';
-    }).join('');
-    detailPanel.innerHTML =
-      '<div class="detail-top">' +
-        '<div><h3>' + run.label + '</h3><span class="seed">seed ' + run.seed + ' · run ' + run.id + '</span></div>' +
-        '<span class="badge ' + run.status + '">' + run.status.toUpperCase() + '</span>' +
-      '</div>' +
-      '<div class="detail-section-label">Event timeline</div>' +
-      '<div class="event-timeline">' + eventsHtml + '</div>' +
-      '<div class="detail-section-label">Promise: ' + run.promise + '</div>' +
-      '<div class="evidence">' + run.evidence.replace(/\n/g,'<br>') + '</div>';
+    detailPanel.textContent = '';
+    var top = document.createElement('div');
+    top.className = 'detail-top';
+    var topInner = document.createElement('div');
+    var h3 = document.createElement('h3');
+    h3.textContent = run.label;
+    var seedSpan = document.createElement('span');
+    seedSpan.className = 'seed';
+    seedSpan.textContent = 'seed ' + run.seed + ' · run ' + run.id;
+    topInner.appendChild(h3);
+    topInner.appendChild(seedSpan);
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + run.status;
+    badge.textContent = run.status.toUpperCase();
+    top.appendChild(topInner);
+    top.appendChild(badge);
+    detailPanel.appendChild(top);
+
+    var l1 = document.createElement('div');
+    l1.className = 'detail-section-label';
+    l1.textContent = 'Event timeline';
+    detailPanel.appendChild(l1);
+
+    var tl = document.createElement('div');
+    tl.className = 'event-timeline';
+    run.events.forEach(function(e) {
+      var ev = document.createElement('div');
+      ev.className = 'event' + (e.f ? ' faulted' : '');
+      var pip = document.createElement('span');
+      pip.className = 'pip';
+      var desc = document.createElement('span');
+      desc.className = 'desc';
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = e.lbl;
+      desc.appendChild(lbl);
+      desc.appendChild(document.createTextNode(' — ' + e.desc));
+      var ms = document.createElement('span');
+      ms.className = 'ms';
+      ms.textContent = e.ms;
+      ev.appendChild(pip);
+      ev.appendChild(desc);
+      ev.appendChild(ms);
+      tl.appendChild(ev);
+    });
+    detailPanel.appendChild(tl);
+
+    var l2 = document.createElement('div');
+    l2.className = 'detail-section-label';
+    l2.textContent = 'Promise: ' + run.promise;
+    detailPanel.appendChild(l2);
+
+    var evd = document.createElement('div');
+    evd.className = 'evidence';
+    run.evidence.split('\n').forEach(function(line, i) {
+      if (i > 0) evd.appendChild(document.createElement('br'));
+      evd.appendChild(document.createTextNode(line));
+    });
+    detailPanel.appendChild(evd);
   }
 
   function selectRun(id){
@@ -690,13 +751,30 @@
   function buildSimControl(){
     var box = document.createElement('div');
     box.className = 'run-sim';
-    box.innerHTML =
-      '<div class="detail-section-label" style="margin-top:0;">Run a new simulation</div>' +
-      '<div class="run-sim-row">' +
-        '<button class="btn-primary" id="simBtn">Run 300 seeds</button>' +
-        '<div class="progress-track"><div class="progress-fill" id="simFill"></div></div>' +
-      '</div>' +
-      '<div class="sim-result hidden" id="simResult"></div>';
+    var l1 = document.createElement('div');
+    l1.className = 'detail-section-label';
+    l1.style.marginTop = '0';
+    l1.textContent = 'Run a new simulation';
+    box.appendChild(l1);
+    var row = document.createElement('div');
+    row.className = 'run-sim-row';
+    var btn = document.createElement('button');
+    btn.className = 'btn-primary';
+    btn.id = 'simBtn';
+    btn.textContent = 'Run 300 seeds';
+    var track = document.createElement('div');
+    track.className = 'progress-track';
+    var fill = document.createElement('div');
+    fill.className = 'progress-fill';
+    fill.id = 'simFill';
+    track.appendChild(fill);
+    row.appendChild(btn);
+    row.appendChild(track);
+    box.appendChild(row);
+    var resBox = document.createElement('div');
+    resBox.className = 'sim-result hidden';
+    resBox.id = 'simResult';
+    box.appendChild(resBox);
     return box;
   }
 
@@ -723,7 +801,13 @@
           var res = simResults[simIdx % simResults.length];
           simIdx++;
           resultBox.className = 'sim-result';
-          resultBox.innerHTML = '<span class="badge ' + res.status + '" style="margin-right:8px;">' + res.status.toUpperCase() + '</span>' + res.line;
+          resultBox.textContent = '';
+          var badge = document.createElement('span');
+          badge.className = 'badge ' + res.status;
+          badge.style.marginRight = '8px';
+          badge.textContent = res.status.toUpperCase();
+          resultBox.appendChild(badge);
+          resultBox.appendChild(document.createTextNode(res.line));
           btn.disabled = false;
         }
       }

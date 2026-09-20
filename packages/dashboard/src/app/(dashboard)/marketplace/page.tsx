@@ -90,6 +90,7 @@ export default function Marketplace() {
               <div className="pt-4">
                 <Button
                   variant="outline"
+                  disabled={true}
                   onClick={() => toast.success(`Promise imported to project successfully!`)}
                 >
                   ↓ Import to Project
