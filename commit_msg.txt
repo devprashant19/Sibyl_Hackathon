@@ -1,0 +1,4 @@
+refactor(e2e): improve playwright.config implementation
+
+Additional updates:
+- test(e2e): refactor coverage for journey.spec
