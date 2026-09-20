@@ -25,7 +25,6 @@ interface RunListProps {
   isLoading?: boolean;
   error?: unknown;
   onRetry?: () => void;
-  /** Active status filter, used to word the empty state. */
   statusFilter?: RunStatusValue | null;
 }
 
@@ -42,7 +41,7 @@ export function RunList({ runs, selectedRunId, onSelectRun, isLoading, error, on
     return (
       <div className="flex-1 p-4 space-y-4" aria-busy="true">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="p-4 border border-ink-3 rounded-md">
+          <div key={i} className="p-4 border border-border rounded-md">
             <div className="flex justify-between items-start mb-2">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-5 w-16" />
@@ -70,7 +69,7 @@ export function RunList({ runs, selectedRunId, onSelectRun, isLoading, error, on
   }
 
   return (
-    <ul className="flex-1 overflow-y-auto divide-y divide-glass-border/50" aria-label="Simulation runs">
+    <ul className="flex-1 overflow-y-auto divide-y divide-border" aria-label="Simulation runs">
       {runs.map((run) => {
         const selected = selectedRunId === run.runId;
         return (
@@ -80,36 +79,41 @@ export function RunList({ runs, selectedRunId, onSelectRun, isLoading, error, on
               onClick={() => onSelectRun(run.runId)}
               data-testid={`run-item-${run.runId}`}
               aria-current={selected ? "true" : undefined}
-              className={`group w-full text-left p-4 cursor-pointer transition-all duration-300 relative overflow-hidden ${
+              className={`w-full text-left p-4 cursor-pointer transition-all relative overflow-hidden ${
                 selected 
-                  ? "bg-gradient-to-r from-gold/10 to-transparent border-l-2 border-gold" 
-                  : "hover:bg-white/5 border-l-2 border-transparent"
+                  ? "bg-surface-raised border-l-4 border-green" 
+                  : "hover:bg-surface-raised border-l-4 border-transparent"
               }`}
             >
-              {selected && <div className="absolute inset-0 bg-gradient-to-r from-gold/5 to-transparent pointer-events-none" />}
-              
-              <div className="relative z-10">
-                <div className="flex justify-between items-start gap-2 mb-1.5">
-                  <span className={`font-mono text-sm font-bold truncate transition-colors ${selected ? "text-gold drop-shadow-sm" : "text-parchment group-hover:text-gold/80"}`} title={run.runId}>
+              <article className="flex flex-col gap-1.5 relative z-10">
+                {/* Row 1: ID and Badge */}
+                <div className="flex justify-between items-start gap-2">
+                  <span className={`font-mono text-sm font-semibold truncate ${selected ? "text-green" : "text-text"}`} title={run.runId}>
                     {run.runId}
                   </span>
                   <Badge variant={statusBadgeVariant(run.status)}>{run.status}</Badge>
                 </div>
-                <div className="flex justify-between items-center gap-2 text-[11px] text-muted font-body">
+                
+                {/* Row 2: Context and Duration */}
+                <div className="flex justify-between items-center gap-2 text-xs text-text-muted">
                   <span className="truncate">
                     {run.project} <span className="opacity-50 mx-1">•</span> session {shortId(run.sessionId)}
                   </span>
-                  <span className="font-mono bg-black/30 shadow-inner px-1.5 py-0.5 rounded text-white/80">{formatDuration(run.durationMs)}</span>
+                  <span className="font-mono bg-bg border border-border px-1.5 py-0.5 rounded text-text-muted">
+                    {formatDuration(run.durationMs)}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center gap-2 text-[11px] text-muted font-body mt-2">
+                
+                {/* Row 3: Timestamp and Failed Promises */}
+                <div className="flex justify-between items-center gap-2 text-xs text-text-dim mt-1">
                   <span>{formatDateTimeUtc(run.createdAt)}</span>
                   {run.failedPromises.length > 0 && (
-                    <span className="text-ember font-medium truncate bg-ember/10 border border-ember/20 px-1.5 py-0.5 rounded shadow-sm" title={run.failedPromises.join(", ")}>
+                    <span className="text-red font-medium truncate bg-red-dim border border-red/20 px-1.5 py-0.5 rounded" title={run.failedPromises.join(", ")}>
                       ✕ {run.failedPromises.length === 1 ? run.failedPromises[0] : `${run.failedPromises.length} promises`}
                     </span>
                   )}
                 </div>
-              </div>
+              </article>
             </button>
           </li>
         );

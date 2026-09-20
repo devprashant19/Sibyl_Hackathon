@@ -1,0 +1,4 @@
+chore: update gitignore for local dev paths
+
+Additional updates:
+- feat(dashboard): revamp dashboard shell and sidebar
