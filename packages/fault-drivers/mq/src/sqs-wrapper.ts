@@ -5,21 +5,25 @@ export function wrapSqsClient(client: any, driver: MqFaultDriver): any {
     get(target, prop, receiver) {
       if (prop === 'send') {
         return async (command: any, options?: any) => {
-          if (!driver.context) return target.send(command, options);
+          // Captured once so an uninstall during an injected delay can't leave us with no context mid-fault.
+          const context = driver.context;
+          if (!context) return target.send(command, options);
 
           const commandName = command.constructor.name;
+          const operation = commandName.replace(/Command$/, '');
           
           // Producer Side
           if (commandName === 'SendMessageCommand') {
             const topic = command.input.QueueUrl;
             
-            const fault = driver.context.getFaultDecision('MESSAGE_QUEUE', {
+            const fault = context.getFaultDecision('MESSAGE_QUEUE', {
               topic,
+              operation,
             });
 
             if (!fault) return target.send(command, options);
 
-            driver.context.recordEvent({
+            context.recordEvent({
               domain: 'MESSAGE_QUEUE',
               payload: { topic, messageId: command.input.MessageDeduplicationId || 'unknown' }
             } as any);
@@ -47,14 +51,15 @@ export function wrapSqsClient(client: any, driver: MqFaultDriver): any {
           if (commandName === 'ReceiveMessageCommand') {
             const topic = command.input.QueueUrl;
             
-            const fault = driver.context.getFaultDecision('MESSAGE_QUEUE', {
+            const fault = context.getFaultDecision('MESSAGE_QUEUE', {
               topic,
+              operation,
             });
 
             const res = await target.send(command, options);
             if (!fault || !res.Messages || res.Messages.length === 0) return res;
 
-            driver.context.recordEvent({
+            context.recordEvent({
               domain: 'MESSAGE_QUEUE',
               payload: { topic, messageId: res.Messages[0]?.MessageId || 'unknown' }
             } as any);
@@ -72,9 +77,14 @@ export function wrapSqsClient(client: any, driver: MqFaultDriver): any {
           // Consumer Side - ACK (Delete)
           if (commandName === 'DeleteMessageCommand') {
             const topic = command.input.QueueUrl;
-            const fault = driver.context.getFaultDecision('MESSAGE_QUEUE', { topic });
+            const fault = context.getFaultDecision('MESSAGE_QUEUE', { topic, operation });
             
             if (fault && fault.type === 'CONSUMER_CRASH_MID_PROCESSING') {
+              context.recordEvent({
+                domain: 'MESSAGE_QUEUE',
+                payload: { topic, messageId: command.input.ReceiptHandle || 'unknown' }
+              } as any);
+
               // Simulate a consumer crashing before the ACK finishes by intentionally NOT sending the DeleteMessageCommand to AWS.
               // The message will stay in-flight and become visible again according to its VisibilityTimeout.
               return {}; // Fake successful ACK to the local caller, but AWS didn't receive it!

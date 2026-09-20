@@ -29,6 +29,7 @@ function wrapProducer(producer: any, driver: MqFaultDriver): any {
 
           const fault = driver.context.getFaultDecision('MESSAGE_QUEUE', {
             topic: record.topic,
+            operation: 'produce',
           });
 
           if (!fault) return target.send(record);
@@ -52,7 +53,8 @@ function wrapProducer(producer: any, driver: MqFaultDriver): any {
 
           if (fault.type === 'OUT_OF_ORDER_DELIVERY') {
             if (record.messages && record.messages.length > 1) {
-              record.messages.reverse();
+              // The record belongs to the caller, who may reuse or inspect it after send().
+              return target.send({ ...record, messages: [...record.messages].reverse() });
             } else {
               // Artificial random jitter to disrupt sequence, using deterministic prng
               await new Promise(resolve => setTimeout(resolve, driver.context!.prng.next() * 50));
@@ -76,11 +78,13 @@ function wrapConsumer(consumer: any, driver: MqFaultDriver): any {
           if (!config || !config.eachMessage) return target.run(config);
 
           const originalEachMessage = config.eachMessage;
-          config.eachMessage = async (payload: any) => {
+          const eachMessage = async (payload: any) => {
             if (!driver.context) return originalEachMessage(payload);
 
             const fault = driver.context.getFaultDecision('MESSAGE_QUEUE', {
               topic: payload.topic,
+              partition: payload.partition,
+              operation: 'consume',
             });
 
             if (!fault) return originalEachMessage(payload);
@@ -110,7 +114,7 @@ function wrapConsumer(consumer: any, driver: MqFaultDriver): any {
             return originalEachMessage(payload);
           };
 
-          return target.run(config);
+          return target.run({ ...config, eachMessage });
         };
       }
       return Reflect.get(target, prop, receiver);
