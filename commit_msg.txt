@@ -1,0 +1,4 @@
+feat(core): introduce index module
+
+Additional updates:
+- test(core): add coverage for regressions.test
