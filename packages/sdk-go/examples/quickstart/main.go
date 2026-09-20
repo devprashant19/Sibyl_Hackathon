@@ -2,9 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/devprashant19/Sibyl/packages/sdk-go/sibyl"
 	"github.com/lib/pq"
@@ -15,6 +19,17 @@ var db *sql.DB
 func init() {
 	// 1. Install Sibyl Driver by wrapping the postgres driver
 	sql.Register("sibyl-postgres", sibyl.WrapDriver(&pq.Driver{}))
+
+	// 2. Inject latency before each inventory UPDATE when asked to, widening the race window.
+	if os.Getenv("SIBYL_SLOW_IO") != "" {
+		sibyl.BeforeExec = func(query string, _ []driver.Value) error {
+			if strings.HasPrefix(query, "UPDATE products") {
+				log.Println("[Sibyl] Injecting SLOW_IO fault on UPDATE...")
+				time.Sleep(150 * time.Millisecond)
+			}
+			return nil
+		}
+	}
 }
 
 type CheckoutRequest struct {
@@ -30,7 +45,10 @@ func checkoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req CheckoutRequest
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// THE BUG: Time-of-Check to Time-of-Use (TOCTOU)
 	// We read, and then write, without a transaction or SELECT ... FOR UPDATE.
@@ -69,5 +87,5 @@ func main() {
 
 	http.HandleFunc("/api/checkout", checkoutHandler)
 	log.Println("Listening on :8080...")
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
