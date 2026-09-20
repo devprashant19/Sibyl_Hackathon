@@ -16,80 +16,66 @@ jobs:
         with:
           fetch-depth: 0 # Required for Turbo affected-only
 
+      # pnpm version comes from "packageManager" in package.json.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # The unit suites and the ESM setup are tested on Node 22.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run checks (Affected only on PRs)
+      # Unit tests run below with coverage, so they are not repeated here.
+      - name: Build and lint (affected only on PRs)
         if: github.event_name == 'pull_request'
-        run: pnpm turbo run build lint test --filter="...[origin/main]"
+        run: pnpm turbo run build lint --filter="...[origin/main]"
 
-      - name: Run checks (All on Main)
+      - name: Build and lint (all on main)
         if: github.event_name == 'push'
-        run: pnpm turbo run build lint test
+        run: pnpm turbo run build lint
 
-      - name: Enforce Code Coverage
-        run: pnpm vitest run --coverage
-        # Coverage thresholds are defined in each package's vitest.config.ts.
-        # If coverage drops below the threshold (e.g., 85% for core), this step will fail.
-        # To deliberately lower a threshold, update the lines threshold in vitest.config.ts
-        # in the respective package and include a justification in the PR description.
+      # Each package runs its own vitest with its own vitest.config (and coverage thresholds, e.g.
+      # 85% lines for core, 70% for agent). Running vitest once at the root would use
+      # vitest.workspace.ts instead, which ignores per-package thresholds and picks up the
+      # Playwright spec in packages/e2e. `./packages/*` does not match packages/fault-drivers/*.
+      - name: Unit tests with coverage (packages)
+        run: pnpm -r --filter "./packages/*" --filter "!@sibyl/e2e" run --if-present test --coverage
+
+      # The fault drivers share packages/fault-drivers/vitest.config.ts (85% lines, integration
+      # tests excluded); a driver's own `vitest run` would not see that config.
+      - name: Unit tests with coverage (fault drivers)
+        run: pnpm exec vitest run --coverage --root packages/fault-drivers
+
+      # Real API + real CLI + real fault injection: search, upload, SSE, replay.
+      - name: End-to-end smoke test
+        run: node scripts/smoke.mjs
 
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'schedule'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Only packages with a `test:integration` script run: @sibyl-fault-drivers/db and
+      # @sibyl-fault-drivers/mq (Testcontainers; Docker is available on ubuntu-latest).
       - name: Run Integration Tests
         run: pnpm turbo run test:integration

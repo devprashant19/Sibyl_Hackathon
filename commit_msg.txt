@@ -1,0 +1,4 @@
+chore: update scratch.ps1 configuration
+
+Additional updates:
+- chore: update  configuration
