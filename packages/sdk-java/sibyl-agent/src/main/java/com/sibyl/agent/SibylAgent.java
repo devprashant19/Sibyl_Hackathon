@@ -13,11 +13,14 @@ public class SibylAgent {
 
         new AgentBuilder.Default()
             // Intercept standard JDBC PreparedStatement execution
-            .type(ElementMatchers.hasSuperType(ElementMatchers.named("java.sql.PreparedStatement")))
+            // Concrete driver classes only: interfaces and abstract methods have no super call to delegate to.
+            .type(ElementMatchers.hasSuperType(ElementMatchers.named("java.sql.PreparedStatement"))
+                .and(ElementMatchers.not(ElementMatchers.isInterface())))
             .transform((builder, type, classLoader, module, domain) -> builder
                 .method(ElementMatchers.named("execute")
                         .or(ElementMatchers.named("executeQuery"))
-                        .or(ElementMatchers.named("executeUpdate")))
+                        .or(ElementMatchers.named("executeUpdate"))
+                        .and(ElementMatchers.not(ElementMatchers.isAbstract())))
                 .intercept(MethodDelegation.to(JdbcInterceptor.class))
             )
             .installOn(inst);
