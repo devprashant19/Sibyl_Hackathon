@@ -1,4 +1,0 @@
-refactor(dashboard): improve page implementation
-
-Additional updates:
-- refactor(dashboard): improve layout implementation
