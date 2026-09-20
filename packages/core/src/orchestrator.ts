@@ -6,6 +6,9 @@ import { SimulationRun, FaultScheduleTemplate, FaultSchedule, PromiseResult } fr
 import { PRNG } from './prng';
 import * as crypto from 'crypto';
 
+import { SearchStrategy } from './search/strategy';
+import { Ucb1SearchStrategy } from './search/ucb1';
+
 export interface SearchConfig {
   workflow: () => Promise<void>;
   templates: FaultScheduleTemplate[];
@@ -15,6 +18,7 @@ export interface SearchConfig {
   earlyExit?: boolean; // Stop if ANY promise fails
   seed?: string;
   clockOptions?: { mode: 'realtime' | 'accelerated', skewMs?: number };
+  strategy?: SearchStrategy;
 }
 
 export interface SearchResult {
@@ -40,36 +44,19 @@ export class SearchOrchestrator {
   private masterSeed: string;
   private prng: PRNG;
   private drivers: FaultDriver[] = [];
+  private strategy: SearchStrategy;
 
   constructor(private config: SearchConfig) {
     this.masterSeed = config.seed || crypto.randomUUID();
     this.prng = new PRNG(this.masterSeed);
+    this.strategy = config.strategy || new Ucb1SearchStrategy(config.templates, this.masterSeed);
   }
 
   registerDriver(driver: FaultDriver) {
     this.drivers.push(driver);
   }
 
-  private generateConcreteSchedules(runSeed: string): FaultSchedule[] {
-    const runPrng = new PRNG(runSeed);
-    return this.config.templates.map(t => {
-      const prob = t.probabilityRange 
-        ? runPrng.next() * (t.probabilityRange[1] - t.probabilityRange[0]) + t.probabilityRange[0]
-        : 1;
-
-      const spec = { ...t.spec };
-      if (t.delayMsRange) {
-        spec.delayMs = Math.floor(runPrng.next() * (t.delayMsRange[1] - t.delayMsRange[0])) + t.delayMsRange[0];
-      }
-
-      return {
-        id: crypto.randomUUID(),
-        spec,
-        probability: prob,
-        target: t.target
-      } as FaultSchedule;
-    });
-  }
+  // generateConcreteSchedules is replaced by strategy.next()
 
   async run(): Promise<SearchResult> {
     const results: SearchResult['results'] = [];
@@ -87,8 +74,13 @@ export class SearchOrchestrator {
     const worker = async () => {
       while (workerQueue.length > 0 && !earlyExited) {
         const i = workerQueue.shift()!;
+        
+        // Ask the strategy for the next schedules
+        const schedules = this.strategy.next(iterationsDone);
+        
+        // We still need a runSeed to initialize the engine's PRNG for the RUN
+        // The orchestrator just forks one for each iteration so the engine has a deterministic base
         const runSeed = this.prng.fork(`run-${i}`).next().toString();
-        const schedules = this.generateConcreteSchedules(runSeed);
         
         const runId = crypto.randomUUID();
         const runConfig: SimulationRun = {
@@ -99,7 +91,6 @@ export class SearchOrchestrator {
         };
 
         const engine = new SimulationEngine(runConfig, runSeed, this.config.clockOptions);
-        // Do not call engine.installDriver() since we proxy at the global level
         
         await AsyncContext.run({ runId, engine }, async () => {
           engine.start();
@@ -131,6 +122,9 @@ export class SearchOrchestrator {
           promiseResults,
           passed: runPassed
         };
+
+        // Send feedback to strategy
+        this.strategy.feedback(runRecord);
 
         results.push(runRecord);
 
