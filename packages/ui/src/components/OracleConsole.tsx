@@ -18,40 +18,52 @@ export function OracleConsole({
 }: OracleConsoleProps) {
   const [scenarioIndex, setScenarioIndex] = React.useState(0);
   const [displayedText, setDisplayedText] = React.useState("");
-  const [isTyping, setIsTyping] = React.useState(true);
+  const [isTyping, setIsTyping] = React.useState(scenarios.length > 0);
   
+  const count = scenarios.length;
+  // Guard against an empty list and against the list shrinking below the current index.
+  const currentScenario = count > 0 ? scenarios[scenarioIndex % count] : "";
+
   React.useEffect(() => {
-    // Respect prefers-reduced-motion
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    
-    if (prefersReducedMotion) {
-      setDisplayedText(scenarios[scenarioIndex]);
+    if (count === 0) {
+      setDisplayedText("");
       setIsTyping(false);
-      
+      return;
+    }
+
+    // Respect prefers-reduced-motion
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      setDisplayedText(currentScenario);
+      setIsTyping(false);
+
       const timer = setTimeout(() => {
-        setScenarioIndex((prev) => (prev + 1) % scenarios.length);
+        setScenarioIndex((prev) => (prev + 1) % count);
       }, pauseBetweenScenariosMs);
-      
+
       return () => clearTimeout(timer);
     }
-    
+
     // Typing effect
-    const currentScenario = scenarios[scenarioIndex];
     if (displayedText.length < currentScenario.length) {
+      setIsTyping(true);
       const timer = setTimeout(() => {
         setDisplayedText(currentScenario.slice(0, displayedText.length + 1));
       }, typingSpeedMs);
       return () => clearTimeout(timer);
-    } else {
-      setIsTyping(false);
-      const timer = setTimeout(() => {
-        setDisplayedText("");
-        setIsTyping(true);
-        setScenarioIndex((prev) => (prev + 1) % scenarios.length);
-      }, pauseBetweenScenariosMs);
-      return () => clearTimeout(timer);
     }
-  }, [displayedText, scenarioIndex, scenarios, typingSpeedMs, pauseBetweenScenariosMs]);
+
+    setIsTyping(false);
+    const timer = setTimeout(() => {
+      setDisplayedText("");
+      setIsTyping(true);
+      setScenarioIndex((prev) => (prev + 1) % count);
+    }, pauseBetweenScenariosMs);
+    return () => clearTimeout(timer);
+  }, [displayedText, currentScenario, count, typingSpeedMs, pauseBetweenScenariosMs]);
 
   return (
     <div
