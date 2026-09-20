@@ -1,18 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { BudgetManager } from "./guardrails/BudgetManager";
-import { ClaudeUnavailableError } from "./errors";
+import { BaseAgentOptions, assertAIEnabled, callClaude, requireText } from "./common";
+import { resolveModel } from "./models";
 
-export interface AnalyzerOptions {
-  apiKey: string;
-  model?: string;
-  orgId?: string;
-}
+export type AnalyzerOptions = BaseAgentOptions;
 
 export interface PostmortemAnalysisResult {
   draftPromises: string;
   draftTemplates: string;
   explanation: string;
 }
+
+const POSTMORTEM_MAX_TOKENS = 8192;
 
 export class SibylPostmortemAnalyzer {
   private anthropic: Anthropic;
@@ -21,13 +20,11 @@ export class SibylPostmortemAnalyzer {
   private budget: BudgetManager;
 
   constructor(options: AnalyzerOptions) {
-    if (process.env.SIBYL_DISABLE_AI === 'true') {
-      throw new Error("AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true). To use AI features in an air-gapped environment, provide a local LLM endpoint.");
-    }
+    assertAIEnabled();
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
-    this.model = options.model || "claude-3-5-sonnet-20240620";
+    this.model = resolveModel(options.model);
     this.orgId = options.orgId || "default-org";
-    this.budget = new BudgetManager();
+    this.budget = new BudgetManager(options.budgetFile);
   }
 
   /**
@@ -65,27 +62,11 @@ export const templates: FaultScheduleTemplate[] = [
 ];
 \`\`\``;
 
-    this.budget.checkBudget(this.orgId);
-
-    let output;
-    try {
-      const response = await this.anthropic.messages.create({
-        model: this.model,
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }]
-      });
-
-      this.budget.recordSpend(
-        this.orgId, 
-        response.usage.input_tokens, 
-        response.usage.output_tokens
-      );
-
-      // @ts-ignore
-      output = response.content[0].text;
-    } catch (err: any) {
-      throw new ClaudeUnavailableError(err);
-    }
+    const response = await callClaude(
+      { anthropic: this.anthropic, budget: this.budget, orgId: this.orgId, model: this.model },
+      { max_tokens: POSTMORTEM_MAX_TOKENS, messages: [{ role: "user", content: prompt }] }
+    );
+    const output = requireText(response).replace(/\r\n?/g, "\n");
 
     // Parse the output using regex
     const explanationMatch = output.match(/### Explanation\n([\s\S]*?)\n### Promise/);
