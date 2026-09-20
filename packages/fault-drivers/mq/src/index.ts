@@ -1,4 +1,4 @@
-import type { FaultDriver, DriverContext } from '@sibyl-core';
+import type { FaultDriver, DriverContext } from '@sibyl/core';
 import { wrapKafka } from './kafka-wrapper';
 import { wrapSqsClient } from './sqs-wrapper';
 
