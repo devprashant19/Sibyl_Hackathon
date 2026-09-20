@@ -1,51 +1,51 @@
-import { definePromise } from "@sibyl/sdk";
+import { AsyncContext, type ProgrammaticPromise } from '@sibyl/core';
+import type { FaultScheduleTemplate } from '@sibyl/shared';
 
-let db: Record<string, { status: string, balanceDeducted: boolean }> = {};
+let charges: string[] = [];
 
 /**
- * THE BUG: A webhook handler that isn't robust against concurrent duplicate deliveries.
- * It checks if status === 'PROCESSED', but if two 'PENDING' events arrive at the same time,
- * they both pass the check and double-deduct the balance.
+ * THE BUG: a webhook handler that charges on every delivery. Webhook senders deliver at least
+ * once: when the acknowledgement times out (an injected HTTP/TIMEOUT), the same event is sent
+ * again, and the handler charges twice because it never records which event ids it processed.
  */
-export async function handleWebhook(orderId: string) {
-  const order = db[orderId];
-  
-  if (order && order.status === 'PROCESSED') {
-    return { status: 200, message: "Already processed" }; // Idempotent success
+export async function handleWebhook(eventId: string, orderId: string) {
+  charges.push(orderId);
+  return { status: 200, eventId };
+}
+
+/** The sender side: deliver, and redeliver if the acknowledgement is lost. */
+export async function deliverWebhook(eventId: string, orderId: string) {
+  await handleWebhook(eventId, orderId);
+  const fault = AsyncContext.getEngine()?.evaluateFaultDecision('HTTP', { route: '/webhooks/payment' });
+  if (fault?.type === 'TIMEOUT') {
+    await handleWebhook(eventId, orderId); // retry after the ack timed out
   }
-
-  // Simulate network latency verifying the webhook signature
-  await new Promise(r => setTimeout(r, 15));
-
-  // The actual processing
-  if (!order) {
-    db[orderId] = { status: 'PROCESSED', balanceDeducted: true };
-  } else {
-    order.status = 'PROCESSED';
-    // BUG: If it was PENDING, and two requests get past the initial check, they both hit this
-    if (order.balanceDeducted) {
-       // We'll throw an error to flag the double charge in our mock
-       db[orderId] = { status: 'DOUBLE_CHARGED', balanceDeducted: true };
-    } else {
-      order.balanceDeducted = true;
-    }
-  }
-
-  return { status: 200, message: "Processed successfully" };
 }
 
 export function resetDb() {
-  db = { 'order-123': { status: 'PENDING', balanceDeducted: false } };
+  charges = [];
 }
 
-export const webhookPromise = definePromise({
-  id: "bug-suite-webhook-idempotency",
-  name: "Idempotent Webhooks",
-  description: "Ensures that receiving duplicate webhooks for the same order does not double-charge.",
-  evaluate: async () => {
-    if (db['order-123']?.status === 'DOUBLE_CHARGED') {
-      return { pass: false, message: `User was double charged due to concurrent webhook delivery.` };
-    }
-    return { pass: true, message: "Webhook processed exactly once." };
-  }
-});
+export async function webhookWorkflow() {
+  resetDb();
+  await deliverWebhook('evt_123', 'order-123');
+}
+
+export const webhookTemplates: FaultScheduleTemplate[] = [
+  {
+    id: '6b1f0f1e-8c1a-4c8e-9d65-3c2d7b0a1a02',
+    spec: { domain: 'HTTP', type: 'TIMEOUT' },
+    probabilityRange: [0, 1],
+    target: { route: '/webhooks/payment' },
+  },
+];
+
+export const webhookPromise: ProgrammaticPromise = {
+  id: 'bug-suite-webhook-idempotency',
+  description: 'A redelivered webhook does not charge the order twice.',
+  severity: 'CRITICAL',
+  evaluate: () => {
+    const count = charges.filter(o => o === 'order-123').length;
+    return { passed: count <= 1, message: `order-123 was charged ${count} times.` };
+  },
+};
