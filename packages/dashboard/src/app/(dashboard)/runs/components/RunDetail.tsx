@@ -1,62 +1,96 @@
 import * as React from "react";
-import { Badge, Card, CodeBlock, Skeleton, EmptyState } from "@sibyl/ui";
-import { AlertCircle } from "lucide-react";
+import { Badge, Card, CodeBlock, Skeleton } from "@sibyl/ui";
+import { ApiErrorState } from "../../../../components/ApiErrorState";
+import type { PromiseDescriptor, PromiseResult, RunDetail as RunDetailData } from "../../../../lib/api-types";
+import {
+  formatDateTimeUtc,
+  formatDuration,
+  formatTimeUtc,
+  scheduleDelayMs,
+  scheduleDetails,
+  summarizeEvent,
+} from "../../../../lib/format";
+import { statusBadgeVariant } from "./RunList";
 
 interface RunDetailProps {
-  run: any | null;
-  events: any[];
+  run: RunDetailData | null;
   isLoading?: boolean;
-  error?: Error;
+  error?: unknown;
   onRetry?: () => void;
 }
 
-export function RunDetail({
-  run,
-  events,
-  isLoading,
-  error,
-  onRetry
-}: RunDetailProps) {
-  const [isExplaining, setIsExplaining] = React.useState(false);
-  const [explanationError, setExplanationError] = React.useState<string | null>(null);
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="font-display text-lg text-gold mb-4">{children}</h3>;
+}
 
+function PromiseResults({ results, descriptors }: { results: PromiseResult[]; descriptors: PromiseDescriptor[] }) {
+  const byId = new Map(descriptors.map((d) => [d.id, d]));
+  // Failed promises first; otherwise keep the reported order (Array#sort is stable).
+  const sorted = [...results].sort((a, b) => Number(a.passed) - Number(b.passed));
+
+  if (sorted.length === 0) {
+    return <p className="text-sm text-muted">No promise results were reported for this run.</p>;
+  }
+
+  return (
+    <ul className="space-y-3">
+      {sorted.map((result) => {
+        const descriptor = byId.get(result.promiseId);
+        return (
+          <li
+            key={`${result.promiseId}:${result.simulationRunId}`}
+            data-testid={`promise-${result.promiseId}`}
+            className={`rounded-md border p-3 ${result.passed ? "border-ink-3 bg-ink-2/40" : "border-ember/30 bg-ember/5"}`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={result.passed ? "pass" : "fail"}>{result.passed ? "PASS" : "FAIL"}</Badge>
+              <span className="font-mono text-sm text-parchment font-semibold">{result.promiseId}</span>
+              <Badge variant="outline" className="text-[10px]">
+                {result.severity}
+              </Badge>
+              {result.intermittent && (
+                <Badge variant="default" className="text-[10px]">
+                  INTERMITTENT
+                </Badge>
+              )}
+            </div>
+            {descriptor?.description && <p className="mt-1 text-sm text-muted">{descriptor.description}</p>}
+            {result.message && (
+              <p className={`mt-2 text-sm font-mono ${result.passed ? "text-muted" : "text-ember"}`}>{result.message}</p>
+            )}
+            {result.actualValue !== undefined && (
+              <p className="mt-1 text-xs font-mono text-muted">actual: {String(result.actualValue)}</p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function RunDetail({ run, isLoading, error, onRetry }: RunDetailProps) {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center p-8">
-        <EmptyState 
-          icon={<AlertCircle size={32} className="text-ember" />}
-          title="Failed to load run details"
-          description={error.message || "An unexpected error occurred."}
-          action={
-            <button 
-              onClick={onRetry}
-              className="px-4 py-2 bg-ink-3 hover:bg-ink-3/80 text-parchment rounded-md text-sm transition-colors"
-            >
-              Retry
-            </button>
-          }
-        />
+        <ApiErrorState title="Failed to load run details" error={error} onRetry={onRetry} />
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="max-w-3xl mx-auto space-y-8 animate-pulse">
-        <header className="flex flex-col space-y-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <Skeleton className="h-8 w-64 mb-2" />
-              <Skeleton className="h-4 w-48" />
-            </div>
-            <Skeleton className="h-6 w-24 rounded-full" />
+      <div className="max-w-3xl mx-auto space-y-8" aria-busy="true">
+        <header className="flex justify-between items-start">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-48" />
           </div>
+          <Skeleton className="h-6 w-24 rounded-full" />
         </header>
-
         <Card className="p-6 bg-ink border-ink-3">
           <Skeleton className="h-6 w-48 mb-6" />
           <div className="space-y-6">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="flex items-center space-x-4">
                 <Skeleton className="h-3 w-3 rounded-full" />
                 <Skeleton className="h-4 w-16" />
@@ -70,219 +104,136 @@ export function RunDetail({
   }
 
   if (!run) {
-    return (
-      <div className="h-full flex items-center justify-center text-muted">
-        Select a run to view details.
-      </div>
-    );
+    return <div className="h-full flex items-center justify-center text-muted">Select a run to view details.</div>;
   }
+
+  const replayCommand = `sibyl replay ${run.runId}`;
+  const explainCommand = `sibyl explain ${run.runId}`;
+  const events = run.events ? [...run.events].sort((a, b) => a.timestamp - b.timestamp) : undefined;
+  const firstTimestamp = events?.[0]?.timestamp ?? 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <header className="flex flex-col space-y-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h2 className="font-display text-2xl text-gold mb-2">Run {run.id}</h2>
-            <div className="flex space-x-4 text-sm text-muted font-mono">
-              <span>{new Date(run.timestamp).toLocaleString()}</span>
-              <span>Environment: {run.environment}</span>
-            </div>
+        <div className="flex justify-between items-start gap-4">
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl text-gold mb-2 break-all">Run {run.runId}</h2>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm text-muted font-mono">
+              <dt>Project</dt>
+              <dd className="text-parchment">{run.project}</dd>
+              <dt>Session</dt>
+              <dd className="text-parchment break-all">{run.sessionId}</dd>
+              <dt>Seed</dt>
+              <dd className="text-parchment break-all" data-testid="run-seed">
+                {run.seed}
+              </dd>
+              <dt>Recorded</dt>
+              <dd className="text-parchment">{formatDateTimeUtc(run.createdAt)}</dd>
+              <dt>Duration</dt>
+              <dd className="text-parchment">{formatDuration(run.durationMs)}</dd>
+            </dl>
           </div>
-          <Badge variant={run.status === "COMPLETED" ? "pass" : "fail"} className="text-sm px-3 py-1">
+          <Badge variant={statusBadgeVariant(run.status)} className="text-sm px-3 py-1 shrink-0">
             {run.status}
           </Badge>
         </div>
 
-        {run.status === "FAILED" && (
-          <div className="flex flex-wrap items-center gap-4 p-4 rounded-md border border-ink-3 bg-ink">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted">Assignee:</span>
-              <select 
-                className="bg-ink-2 border border-ink-3 rounded text-sm px-2 py-1 text-parchment outline-none"
-                defaultValue={run.assignee || "unassigned"}
-              >
-                <option value="unassigned">Unassigned</option>
-                <option value="Alice Engineer">Alice Engineer</option>
-                <option value="Bob Developer">Bob Developer</option>
-              </select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted">Status:</span>
-              <select 
-                className="bg-ink-2 border border-ink-3 rounded text-sm px-2 py-1 outline-none"
-                defaultValue={run.triageStatus || "OPEN"}
-              >
-                <option value="OPEN" className="text-ember">OPEN</option>
-                <option value="INVESTIGATING" className="text-gold">INVESTIGATING</option>
-                <option value="RESOLVED" className="text-parchment">RESOLVED</option>
-                <option value="WONT_FIX" className="text-muted">WONT_FIX</option>
-              </select>
-            </div>
-            <div className="ml-auto">
-              {run.externalIssueUrl ? (
-                <a href={run.externalIssueUrl} target="_blank" rel="noreferrer" className="flex items-center space-x-2 px-3 py-1.5 bg-ink-2 border border-ink-3 hover:border-gold/50 rounded-md text-sm transition-colors text-parchment">
-                  <span className="w-4 h-4 rounded-sm bg-violet flex items-center justify-center text-[10px] font-bold">L</span>
-                  <span>SIB-102</span>
-                </a>
-              ) : (
-                <button className="flex items-center space-x-2 px-3 py-1.5 bg-violet/10 text-violet border border-violet/30 hover:bg-violet/20 rounded-md text-sm transition-colors font-semibold">
-                  <span className="w-4 h-4 rounded-sm bg-violet text-ink flex items-center justify-center text-[10px] font-bold">L</span>
-                  <span>Create Linear Issue</span>
-                </button>
-              )}
-            </div>
+        {run.error && (
+          <div role="alert" className="rounded-md border border-ember/30 bg-ember/5 p-3 text-sm font-mono text-ember">
+            {run.error}
           </div>
         )}
       </header>
 
       <Card className="p-6 bg-ink">
-        <h3 className="font-display text-lg text-gold mb-6">Event Timeline</h3>
-        <div className="relative border-l border-ink-3 ml-3 space-y-8">
-          {events.map((event: any, idx: number) => (
-            <div key={event.id} className="relative pl-8">
-              {/* Timeline Node */}
-              <div className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-ink bg-ink ${event.isFault ? 'bg-ember border-ember ring-4 ring-ember/20' : 'bg-gold border-gold'}`} />
-              
-              <div className="flex flex-col space-y-2">
-                <div className="flex items-center space-x-3">
+        <SectionTitle>Replay</SectionTitle>
+        <p className="text-sm text-muted mb-3">Reproduce this exact run (same seed and fault schedule) locally:</p>
+        <CodeBlock code={replayCommand} language="shell" data-testid="replay-command" />
+      </Card>
+
+      <Card className="p-6 bg-ink">
+        <SectionTitle>Promise Results</SectionTitle>
+        <PromiseResults results={run.promiseResults} descriptors={run.promises ?? []} />
+      </Card>
+
+      <Card className="p-6 bg-ink">
+        <SectionTitle>Fault Schedule</SectionTitle>
+        {run.concreteSchedules.length === 0 ? (
+          <p className="text-sm text-muted">No faults were scheduled for this run.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs uppercase text-muted font-mono">
+                <tr>
+                  <th className="py-2 pr-4 font-semibold">Domain</th>
+                  <th className="py-2 pr-4 font-semibold">Type</th>
+                  <th className="py-2 pr-4 font-semibold">Probability</th>
+                  <th className="py-2 pr-4 font-semibold">Delay</th>
+                  <th className="py-2 font-semibold">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-3 font-mono">
+                {run.concreteSchedules.map((schedule) => {
+                  const delay = scheduleDelayMs(schedule);
+                  const details = scheduleDetails(schedule);
+                  return (
+                    <tr key={schedule.id}>
+                      <td className="py-2 pr-4">
+                        <Badge variant="outline" className="text-[10px]">
+                          {schedule.spec.domain}
+                        </Badge>
+                      </td>
+                      <td className="py-2 pr-4 text-parchment">{schedule.spec.type}</td>
+                      <td className="py-2 pr-4 text-parchment">{Math.round(schedule.probability * 1000) / 10}%</td>
+                      <td className="py-2 pr-4 text-parchment">{delay === undefined ? "—" : `${delay}ms`}</td>
+                      <td className="py-2 text-muted text-xs">{details || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6 bg-ink">
+        <SectionTitle>Event Timeline</SectionTitle>
+        {events === undefined ? (
+          <p className="text-sm text-muted">
+            {run.passed
+              ? `Passing runs are stored without a timeline${typeof run.eventCount === "number" ? ` (${run.eventCount} events captured)` : ""}.`
+              : "No event timeline was uploaded for this run."}
+          </p>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-muted">No telemetry captured for this run.</p>
+        ) : (
+          <ol className="relative border-l border-ink-3 ml-3 space-y-5">
+            {events.map((event, idx) => (
+              <li key={event.id ?? `${event.timestamp}-${idx}`} className="relative pl-8" data-testid="timeline-event">
+                <div className="absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-gold bg-gold" />
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-xs text-muted font-mono">{formatTimeUtc(event.timestamp)}</span>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {event.domain}
                   </Badge>
-                  <span className={`font-mono text-sm font-semibold ${event.isFault ? 'text-ember' : 'text-parchment'}`}>
-                    {event.type}
-                  </span>
-                  <span className="text-xs text-muted font-mono ml-auto">
-                    +{idx > 0 ? (new Date(event.timestamp).getTime() - new Date(events[0].timestamp).getTime()) : 0}ms
-                  </span>
+                  <span className="text-xs text-muted font-mono ml-auto">+{event.timestamp - firstTimestamp}ms</span>
                 </div>
-                
-                {event.payload && (
-                  <div className="mt-2">
-                    <CodeBlock 
-                      code={JSON.stringify(event.payload, null, 2)} 
-                      language="json"
-                      className="bg-ink-3/30 border-ink-3" 
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          
-          {events.length === 0 && (
-            <p className="pl-8 text-sm text-muted">No telemetry captured for this run.</p>
-          )}
-        </div>
+                <p className="mt-1 font-mono text-sm text-parchment break-all">{summarizeEvent(event)}</p>
+              </li>
+            ))}
+          </ol>
+        )}
       </Card>
 
-      {/* Root Cause & Discussion */}
-      {run.status === "FAILED" && (
-        <div className="space-y-6">
-          {run.rootCauseExplanation ? (
-            <Card className="p-6 bg-ember/5 border-ember/20">
-              <h3 className="font-display text-lg text-ember mb-2 flex items-center">
-                <span className="mr-2">⚡</span> AI Root Cause Analysis
-              </h3>
-              <p className="text-sm text-parchment leading-relaxed font-body">
-                {run.rootCauseExplanation}
-              </p>
-            </Card>
-          ) : explanationError ? (
-            <Card className="p-6 bg-ember/5 border-ember/20">
-              <h3 className="font-display text-lg text-ember mb-2 flex items-center">
-                <AlertCircle className="mr-2 h-5 w-5" /> AI Explanation Unavailable
-              </h3>
-              <p className="text-sm text-parchment leading-relaxed font-body mb-4">
-                {explanationError}
-              </p>
-              <div className="text-xs text-muted mb-2">Raw captured evidence:</div>
-              <CodeBlock 
-                code={JSON.stringify({ events: events.filter(e => e.isFault), promise: run.failedPromise }, null, 2)} 
-                language="json"
-                className="bg-ink-3/30 border-ink-3 max-h-64 overflow-y-auto" 
-              />
-              <button 
-                className="mt-4 px-4 py-2 bg-ink-3 hover:bg-ink-3/80 text-parchment rounded-md text-sm transition-colors"
-                onClick={() => setExplanationError(null)}
-              >
-                Dismiss
-              </button>
-            </Card>
-          ) : (
-            <Card className="p-6 bg-ink flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-gold text-2xl">
-                🤖
-              </div>
-              <div>
-                <h3 className="font-display text-lg text-parchment mb-1">Diagnose this Failure</h3>
-                <p className="text-sm text-muted">Use the Sibyl Explainer Agent to analyze the event timeline and determine the root cause.</p>
-              </div>
-              <button 
-                className={`px-4 py-2 bg-gold/10 text-gold border border-gold/30 rounded-md font-semibold text-sm transition-colors hover:bg-gold/20 flex items-center space-x-2 ${isExplaining ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={isExplaining}
-                onClick={() => {
-                  setIsExplaining(true);
-                  setTimeout(() => {
-                    // Simulate an error (e.g. BudgetExceededError or ClaudeUnavailableError)
-                    setExplanationError("Budget exceeded for organization default-org. Current spend: $50.00, Limit: $50.00.");
-                    setIsExplaining(false);
-                  }, 1000);
-                }}
-              >
-                {isExplaining ? (
-                  <>
-                    <span className="animate-spin mr-2">⚙️</span>
-                    <span>Analyzing telemetry...</span>
-                  </>
-                ) : (
-                  <span>✨ Explain this failure</span>
-                )}
-              </button>
-            </Card>
-          )}
-
-          <Card className="p-6 bg-ink flex flex-col">
-            <h3 className="font-display text-lg text-gold mb-4">Discussion</h3>
-            
-            <div className="space-y-4 mb-6">
-              {run.comments?.map((comment: any) => (
-                <div key={comment.id} className="flex space-x-3">
-                  <div className="w-8 h-8 rounded-full bg-ink-3 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-semibold text-gold">
-                      {comment.author.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 bg-ink-2 border border-ink-3 rounded-lg p-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-semibold text-parchment">{comment.author}</span>
-                      <span className="text-xs text-muted font-mono">{new Date(comment.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-sm text-muted">
-                      {comment.content.split(/(@\w+)/g).map((part: string, i: number) => 
-                        part.startsWith('@') ? <span key={i} className="text-gold font-semibold">{part}</span> : part
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {(!run.comments || run.comments.length === 0) && (
-                <p className="text-sm text-muted italic">No comments yet.</p>
-              )}
-            </div>
-
-            <div className="mt-auto">
-              <div className="relative">
-                <textarea 
-                  className="w-full bg-ink-2 border border-ink-3 rounded-lg p-3 text-sm text-parchment outline-none focus:border-gold min-h-[80px] resize-none placeholder:text-ink-3"
-                  placeholder="Add a comment... Use @ to mention"
-                />
-                <button className="absolute bottom-3 right-3 px-3 py-1 bg-gold/10 text-gold border border-gold/20 hover:bg-gold/20 rounded font-semibold text-sm transition-colors">
-                  Comment
-                </button>
-              </div>
-            </div>
-          </Card>
-        </div>
+      {!run.passed && (
+        <Card className="p-6 bg-ink">
+          <SectionTitle>Explain this failure</SectionTitle>
+          <p className="text-sm text-muted mb-3">
+            AI root-cause explanations are generated by the CLI, not the dashboard. Run this where your Sibyl project and
+            credentials live:
+          </p>
+          <CodeBlock code={explainCommand} language="shell" data-testid="explain-command" />
+        </Card>
       )}
     </div>
   );

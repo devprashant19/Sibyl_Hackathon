@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Card, CodeBlock, Badge } from "@sibyl/ui";
+import { Card, CodeBlock, Badge, Button } from "@sibyl/ui";
+import { PreviewBanner } from "../../../components/PreviewBanner";
 
 const TEMPLATES = [
   {
@@ -42,14 +43,9 @@ const TEMPLATES = [
 export default function Marketplace() {
   const [lang, setLang] = React.useState<"typescript" | "python">("typescript");
 
-  const [imported, setImported] = React.useState<Record<string, boolean>>({});
-
-  const handleImport = (id: string) => {
-    setImported(prev => ({ ...prev, [id]: true }));
-    // In a real app, this would POST to the API to scaffold the code into the repo
-  };
-
   return (
+    <>
+    <PreviewBanner detail="Templates are examples; importing into a project is not implemented." />
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <header className="flex justify-between items-end mb-12">
         <div>
@@ -91,17 +87,13 @@ export default function Marketplace() {
               </p>
               
               <div className="pt-4">
-                <button 
-                  onClick={() => handleImport(template.id)}
-                  disabled={imported[template.id]}
-                  className={`px-6 py-2 rounded-md font-mono text-sm transition-all border ${
-                    imported[template.id] 
-                      ? "bg-ink text-muted border-ink-3 cursor-not-allowed" 
-                      : "bg-gold/10 text-gold border-gold/30 hover:bg-gold/20 font-semibold"
-                  }`}
+<Button
+                  variant="outline"
+                  disabled
+                  title="Not available in this preview"
                 >
-                  {imported[template.id] ? "✓ Imported" : "↓ Import to Project"}
-                </button>
+                  ↓ Import to Project (not available yet)
+                </Button>
               </div>
             </div>
 
@@ -116,5 +108,6 @@ export default function Marketplace() {
         ))}
       </div>
     </div>
+    </>
   );
 }
