@@ -1,4 +1,0 @@
-chore: update TESTING.md configuration
-
-Additional updates:
-- chore(docker): update docker configuration for
