@@ -43,21 +43,23 @@ describe('Process Fault Driver', () => {
       type: 'CRASH'
     });
 
-    // Run a script that sleeps for 5 seconds
+    // Run a script that sleeps for 30 seconds
     const start = Date.now();
     const err: any = await new Promise((resolve) => {
-      cp.exec('node -e "setTimeout(() => {}, 5000)"', (err) => resolve(err));
+      cp.exec('node -e "setTimeout(() => {}, 30000)"', (err) => resolve(err));
     });
     const duration = Date.now() - start;
 
     expect(err).toBeDefined();
-    // It should have been killed almost instantly
-    expect(duration).toBeLessThan(1000);
+    // Killed long before the sleep ends. The bound is generous on purpose: under a loaded machine
+    // (turbo runs the CPU-pressure tests alongside this one) merely starting cmd.exe can take seconds,
+    // and a tight bound measured the machine rather than the driver.
+    expect(duration).toBeLessThan(10_000);
     // Node exec will report the signal that killed it
     expect(err.signal).toBe('SIGKILL');
 
     expect(mockRecordEvent).toHaveBeenCalled();
-  });
+  }, 40_000);
 
   it('injects OOM_KILL via SIGKILL (returns 137 exit code analog)', async () => {
     mockGetFaultDecision.mockReturnValue({
