@@ -8,7 +8,7 @@ export interface GitHubAppOptions {
 export class SibylGitHubApp {
   private octokit: Octokit;
 
-  constructor(options: GitHubAppOptions) {
+  constructor(_options: GitHubAppOptions) {
     // In a real implementation, we would use @octokit/auth-app to authenticate
     // as a GitHub App installation. For v1, we mock it with a PAT if provided,
     // or just run in dry-run mode.
