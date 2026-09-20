@@ -1,4 +1,4 @@
-import express, { NextFunction, Request, Response } from 'express';
+import express, { Express, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import { EventEmitter } from 'events';
 import * as crypto from 'crypto';
@@ -49,7 +49,7 @@ function queryString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-export function createApp(options: AppOptions) {
+export function createApp(options: AppOptions): { app: Express; bus: EventEmitter } {
   const { store } = options;
   const bus = new EventEmitter();
   bus.setMaxListeners(0); // one listener per open dashboard tab

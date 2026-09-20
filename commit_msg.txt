@@ -1,4 +1,0 @@
-chore: update logfile configuration
-
-Additional updates:
-- chore(agent): refactor package dependencies

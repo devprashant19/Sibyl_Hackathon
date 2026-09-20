@@ -1,6 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { pathToFileURL } from 'url';
 import { WebhookWorker } from '@sibyl/core';
 import { DataRetentionWorker } from '@sibyl/core/retention';
 import { createApp } from './app';
@@ -103,7 +104,8 @@ export async function startServer(config: ServerConfig = configFromEnv()) {
   return { server, port, store, close };
 }
 
-if (require.main === module) {
+// Run directly (tsx src/server.ts), not when imported.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   startServer()
     .then(({ close }) => {
       const shutdown = (signal: string) => {
