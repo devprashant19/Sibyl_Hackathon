@@ -1,4 +1,0 @@
-refactor(core): improve job implementation
-
-Additional updates:
-- refactor(core): improve bayesian implementation

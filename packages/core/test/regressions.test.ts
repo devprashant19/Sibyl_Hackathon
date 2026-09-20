@@ -273,7 +273,7 @@ describe('SearchOrchestrator', () => {
     const replayed = await make().replay(failed!);
     expect(replayed.status).toBe('FAILED');
     // Timestamps are wall-clock in real-time mode; the decisions and payloads are what replay.
-    const strip = (events: any[]) => events.map(({ timestamp, ...rest }) => rest);
+    const strip = (events: any[]) => events.map(e => ({ ...e, timestamp: undefined }));
     expect(strip(replayed.events!)).toEqual(strip(failed!.events!));
   });
 });
