@@ -1,0 +1,4 @@
+feat(e2e): introduce e2e-env module
+
+Additional updates:
+- chore(e2e): add configuration for tsconfig
