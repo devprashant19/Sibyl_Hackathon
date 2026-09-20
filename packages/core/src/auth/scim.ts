@@ -1,5 +1,13 @@
 import jackson, { IDirectorySyncController, JacksonOption } from '@boxyhq/saml-jackson';
 
+export class ScimUnavailableError extends Error {
+  public statusCode = 503;
+  constructor(message: string) {
+    super(message);
+    this.name = 'ScimUnavailableError';
+  }
+}
+
 export class DirectorySyncService {
   private directorySync: IDirectorySyncController | null = null;
 
@@ -13,41 +21,58 @@ export class DirectorySyncService {
       db: {
         engine: 'sql',
         type: 'postgres',
-        url: process.env.POSTGRES_URI || 'postgresql://mock:mock@localhost:5432/mock',
+        url: this.requireDatabaseUrl(),
       },
     };
 
     try {
       const { directorySyncController } = await jackson(opts);
       this.directorySync = directorySyncController;
-      console.log(`[DirectorySyncService] Successfully initialized SCIM 2.0 provisioning.`);
     } catch (err: any) {
-      console.warn(`[DirectorySyncService] Mock Mode: Running without real database connection.`);
+      throw new ScimUnavailableError(`Could not initialise SCIM directory sync: ${err.message}`);
     }
   }
 
-  /**
-   * Mocks the handling of a SCIM POST /scim/v2/Users request from Okta.
-   * In a real deployment, this routes to this.directorySync.users.create()
-   */
-  public async provisionUser(tenant: string, scimPayload: any) {
-    console.log(`[SCIM] Provisioning user via directory sync for tenant ${tenant}:`, scimPayload.userName);
-    
-    // In production, we would automatically insert this user into our Users table
-    // and assign them the 'MEMBER' role via RBAC.
-    return {
-      status: 'created',
-      userId: `usr_${Math.random().toString(36).substring(7)}`,
-      email: scimPayload.userName,
-    };
+  public isAvailable(): boolean {
+    return this.directorySync !== null;
+  }
+
+  private requireDatabaseUrl(): string {
+    const url = process.env.POSTGRES_URI;
+    if (!url) throw new ScimUnavailableError('SCIM needs a database: set POSTGRES_URI.');
+    return url;
+  }
+
+  private requireDirectorySync(): IDirectorySyncController {
+    if (!this.directorySync) {
+      throw new ScimUnavailableError('SCIM is not initialised. Call init() and check it succeeded.');
+    }
+    return this.directorySync;
   }
 
   /**
-   * Mocks the handling of a SCIM PATCH /scim/v2/Users/:id request.
-   * If active: false is sent, the user is immediately deprovisioned from Sibyl.
+   * Handles a SCIM `POST /Users` (create) or `PATCH /Users/:id` (update, including `active: false`
+   * deprovisioning) by handing the raw request to Jackson's directory sync, which stores the user
+   * and emits the directory event. There is no local fallback: this used to log and return a
+   * random user id without storing anything, which reported success for provisioning that never
+   * happened.
    */
-  public async deprovisionUser(tenant: string, userId: string) {
-    console.log(`[SCIM] Deprovisioning user ${userId} for tenant ${tenant}. Access revoked instantly.`);
-    return { status: 'revoked' };
+  public async handleScimRequest(request: {
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    directoryId: string;
+    path: string;
+    body?: any;
+    apiSecret: string;
+  }) {
+    const directorySync = this.requireDirectorySync();
+    return directorySync.requests.handle({
+      method: request.method,
+      body: request.body,
+      apiSecret: request.apiSecret,
+      directoryId: request.directoryId,
+      resourceType: request.path.includes('/Groups') ? 'groups' : 'users',
+      resourceId: request.path.split('/').filter(Boolean)[1],
+      query: {},
+    });
   }
 }

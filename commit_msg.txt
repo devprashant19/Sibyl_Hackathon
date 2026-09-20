@@ -1,4 +1,0 @@
-feat(core): refactor API integration for webhook-worker
-
-Additional updates:
-- refactor(core): improve compliance implementation
