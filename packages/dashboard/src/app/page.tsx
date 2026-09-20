@@ -61,9 +61,7 @@ export default function MarketingLandingPage() {
       <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur border-b border-border">
         <div className="max-w-[1180px] mx-auto px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 flex items-center justify-center relative">
-               <div className="w-2.5 h-2.5 rounded-full bg-green animate-pulse" />
-            </div>
+            <img src="/logo.jpg" alt="Sibyl logo" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-mono font-semibold text-lg tracking-wide text-text">Sibyl</span>
             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-green-dim text-green-bright border border-green/20 ml-2">v2.4.0</span>
           </div>
@@ -209,9 +207,7 @@ export default function MarketingLandingPage() {
       <footer className="border-t border-border bg-surface py-12 px-8">
         <div className="max-w-[1180px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 flex items-center justify-center">
-               <div className="w-2 h-2 rounded-full bg-green" />
-            </div>
+            <img src="/logo.jpg" alt="Sibyl logo" className="w-6 h-6 rounded object-cover" />
             <span className="font-mono font-semibold text-text">Sibyl</span>
           </div>
           <div className="flex gap-6 text-sm text-text-muted font-sans">

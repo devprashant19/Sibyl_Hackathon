@@ -46,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="w-64 border-r border-border bg-surface flex flex-col relative z-20">
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-green text-[20px]">cyclone</span>
+            <img src="/logo.jpg" alt="Sibyl" className="w-7 h-7 rounded-md object-cover" />
             <span className="font-semibold text-text">Sibyl Engine</span>
             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface-raised text-text-dim border border-border ml-auto">v2.4.0</span>
           </div>
@@ -92,9 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-14 border-b border-border bg-surface-raised flex items-center justify-between px-4 z-10 sticky top-0">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-5 h-5 flex items-center justify-center relative">
-                 <div className="w-2.5 h-2.5 rounded-full bg-green" />
-              </div>
+              <img src="/logo.jpg" alt="Sibyl" className="w-6 h-6 rounded object-cover" />
               <span className="font-mono font-semibold text-text">Sibyl</span>
             </Link>
             <div className="w-px h-5 bg-border" />

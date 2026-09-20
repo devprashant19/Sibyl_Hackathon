@@ -4,7 +4,16 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Sibyl - Chaos Engineering for Production Systems",
-  description: "Fault-injection and simulation engine",
+  description: "Fault-injection and simulation engine that sees failures before they reach production.",
+  icons: {
+    icon: [{ url: '/logo.jpg', sizes: 'any' }],
+    apple: '/logo.jpg',
+  },
+  openGraph: {
+    title: 'Sibyl',
+    description: 'See the failure before they do.',
+    images: [{ url: '/logo.jpg' }],
+  },
 };
 
 export default function RootLayout({

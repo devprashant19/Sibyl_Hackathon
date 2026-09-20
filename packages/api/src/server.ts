@@ -6,6 +6,7 @@ import { WebhookWorker } from '@sibyl/core';
 import { DataRetentionWorker } from '@sibyl/core/retention';
 import { createApp } from './app';
 import { FileSessionStore, MemorySessionStore, SessionStore } from './store';
+import { seedDemoData, shouldSeedDemo } from './demo-seed';
 
 const VERSION = '0.1.0';
 const LOOPBACK = new Set(['127.0.0.1', '::1', 'localhost']);
@@ -41,6 +42,12 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): ServerConfi
 export async function startServer(config: ServerConfig = configFromEnv()) {
   const store: SessionStore = config.dataDir ? new FileSessionStore(config.dataDir) : new MemorySessionStore();
 
+  // Seed demo data if the store is fresh (e.g. after a Render cold-start)
+  if (store instanceof MemorySessionStore && shouldSeedDemo(store, store.kind)) {
+    await seedDemoData(store);
+    console.log('[api] Demo data seeded.');
+  }
+
   let webhooks: WebhookWorker | undefined;
   if (config.webhookUrl) {
     if (!config.webhookSecret) throw new Error('SIBYL_WEBHOOK_URL is set but SIBYL_WEBHOOK_SECRET is not; deliveries must be signed.');
@@ -48,7 +55,7 @@ export async function startServer(config: ServerConfig = configFromEnv()) {
     webhooks.registerSubscription({ id: 'env', url: config.webhookUrl, secret: config.webhookSecret, eventTypes: ['*'] });
   }
 
-  const { app } = createApp({
+  const { app, bus } = createApp({
     store,
     version: VERSION,
     token: config.token,
@@ -93,6 +100,41 @@ export async function startServer(config: ServerConfig = configFromEnv()) {
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
   console.log(`[api] Sibyl API ${VERSION} on http://${config.host}:${port}  (storage: ${store.kind}${store.location ? ` ${store.location}` : ''}, ${store.counts().sessions} sessions)`);
+
+  // Live SSE demo: every 30s emit a synthetic in-progress → completed event pair
+  // so the Live Sessions panel shows activity even with no real CLI runs.
+  if (store instanceof MemorySessionStore && store.counts().sessions > 0) {
+    const runDemo = async () => {
+      const demoSessionId = `demo-${crypto.randomUUID()}`;
+      const projects = ['checkout', 'notifications'];
+      const project = projects[Math.floor(Math.random() * projects.length)];
+      const total = [50, 100, 200][Math.floor(Math.random() * 3)];
+      // progress tick
+      bus.emit('progress', {
+        type: 'progress',
+        sessionId: demoSessionId,
+        project,
+        done: Math.floor(total * 0.6),
+        total,
+        failures: Math.floor(Math.random() * 3),
+      });
+      // complete after 3s
+      await new Promise(r => setTimeout(r, 3000));
+      bus.emit('progress', {
+        type: 'completed',
+        sessionId: demoSessionId,
+        project,
+        done: total,
+        total,
+        failures: Math.floor(Math.random() * 3),
+      });
+    };
+    // First one fires after 8s so the page has time to load
+    setTimeout(() => {
+      void runDemo();
+      setInterval(() => void runDemo(), 30_000);
+    }, 8000);
+  }
 
   const close = async () => {
     if (retentionTimer) clearInterval(retentionTimer);
