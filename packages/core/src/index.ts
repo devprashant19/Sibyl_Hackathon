@@ -5,6 +5,7 @@ export * from './engine';
 export * from './promise';
 export * from './async-context';
 export * from './orchestrator';
+export * from './calendar';
 export * from './search/strategy';
 export * from './search/ucb1';
 export * from './search/mcts';

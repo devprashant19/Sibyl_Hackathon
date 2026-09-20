@@ -5,7 +5,7 @@ import * as path from 'path';
 import cliProgress from 'cli-progress';
 // Need dynamic import for the user's config
 // import { SearchOrchestrator } from '@sibyl-core'; // Stub
-import { SibylInvestigator, SibylExplainer, SibylPatcher } from '@sibyl-agent';
+import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer } from '@sibyl-agent';
 
 const program = new Command();
 
@@ -297,5 +297,47 @@ program
     }
   });
 
+// --- RETRO COMMAND ---
+program
+  .command('retro <postmortemFile>')
+  .description('AI translates an incident postmortem into permanent regression tests')
+  .action(async (postmortemFile) => {
+    console.log(chalk.blue.bold(`\n📝 Sibyl Postmortem Analyzer Started`));
+    
+    if (!fs.existsSync(postmortemFile)) {
+      console.log(chalk.red(`❌ Could not find file: ${postmortemFile}`));
+      process.exit(1);
+    }
+    
+    const postmortemText = fs.readFileSync(postmortemFile, 'utf-8');
+    console.log(chalk.gray(`Analyzing incident document (${postmortemText.length} bytes)...\n`));
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.log(chalk.red('❌ Missing ANTHROPIC_API_KEY environment variable.'));
+      process.exit(1);
+    }
+
+    const analyzer = new SibylPostmortemAnalyzer({ apiKey });
+
+    try {
+      console.log(chalk.magenta('🤖 Drafting regression tests...'));
+      const result = await analyzer.analyze(postmortemText);
+
+      console.log(chalk.green.bold('\n✔ Analysis Complete'));
+      console.log(chalk.white(`\nReasoning:\n${result.explanation}`));
+      
+      console.log(chalk.yellow('\nDrafted Programmatic Promise:'));
+      console.log(result.draftPromises);
+
+      console.log(chalk.yellow('\nDrafted Fault Schedule Template:'));
+      console.log(result.draftTemplates);
+
+      console.log(chalk.cyan('\nCopy the above definitions into your sibyl.config.ts to close the loop on this incident!'));
+
+    } catch (err: any) {
+      console.log(chalk.red(`❌ Agent error: ${err.message}`));
+    }
+  });
 
 program.parse(process.argv);
