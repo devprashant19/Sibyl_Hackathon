@@ -1,4 +1,0 @@
-chore: update pnpm-lock.yaml.3290863963 configuration
-
-Additional updates:
-- chore: update script.ps1 configuration
