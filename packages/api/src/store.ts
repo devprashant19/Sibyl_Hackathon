@@ -132,8 +132,9 @@ export class MemorySessionStore implements SessionStore {
     // Oldest first, so each trend's points read left to right in time.
     const sessions = this.sortedSessions().reverse().filter(s => !query.project || s.project === query.project);
     for (const session of sessions) {
-      for (const promise of session.promises.filter(p => p.scope !== 'session')) {
-        const results = session.runs.flatMap(r => r.promiseResults.filter(p => p.promiseId === promise.id));
+      if (!session.runs?.length) continue;
+      for (const promise of (session.promises ?? []).filter(p => p.scope !== 'session')) {
+        const results = session.runs.flatMap(r => r.promiseResults?.filter(p => p.promiseId === promise.id) ?? []);
         if (results.length === 0) continue;
         const failedRuns = results.filter(r => !r.passed).length;
         const trend = trends.get(promise.id) ?? {
@@ -154,7 +155,7 @@ export class MemorySessionStore implements SessionStore {
 
   counts() {
     let runs = 0;
-    for (const s of this.sessions.values()) runs += s.runs.length;
+    for (const s of this.sessions.values()) runs += s.runs?.length ?? 0;
     return { sessions: this.sessions.size, runs };
   }
 

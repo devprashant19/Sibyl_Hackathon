@@ -138,15 +138,15 @@ export async function seedDemoData(store: MemorySessionStore): Promise<void> {
       makeRun('', '0x1124', 'COMPLETED', notifPromises),
       makeRun('', '0x1125', 'COMPLETED', notifPromises),
     ] },
-    { id: uuid(), project: 'notifications', startedAt: daysAgo(2), seed: 'notif-2', strategy: 'bayesian', runs: [
+    { project: 'notifications', startedAt: daysAgo(2), completedAt: daysAgo(2) + 12000, seed: 'notif-2', strategy: 'bayesian', iterations: 20, source: 'ci', promises: notifPromises, summary: { totalRuns: 20, failures: 0, passes: 20, errored: 0, intermittent: 0 }, runs: [
       makeRun('', '0x5555', 'COMPLETED', notifPromises),
       makeRun('', '0x5556', 'COMPLETED', notifPromises),
     ] },
-    { id: uuid(), project: 'notifications', startedAt: daysAgo(1), seed: 'notif-1', strategy: 'bayesian', runs: [
+    { project: 'notifications', startedAt: daysAgo(1), completedAt: daysAgo(1) + 11000, seed: 'notif-1', strategy: 'bayesian', iterations: 25, source: 'ci', promises: notifPromises, summary: { totalRuns: 25, failures: 1, passes: 24, errored: 0, intermittent: 0 }, runs: [
       makeRun('', '0x5566', 'FAILED', notifPromises, ['push-within-sla'], true),
       makeRun('', '0x5567', 'COMPLETED', notifPromises),
     ] },
-    { id: uuid(), project: 'notifications', startedAt: now - 2 * 60 * 60 * 1000, seed: 'notif-0', strategy: 'bayesian', runs: [
+    { project: 'notifications', startedAt: now - 2 * 60 * 60 * 1000, completedAt: now - 1.9 * 60 * 60 * 1000, seed: 'notif-0', strategy: 'bayesian', iterations: 15, source: 'cli', promises: notifPromises, summary: { totalRuns: 15, failures: 0, passes: 14, errored: 0, intermittent: 1 }, runs: [
       makeRun('', '0x5568', 'INTERMITTENT', notifPromises, ['push-within-sla']),
       makeRun('', '0x5569', 'COMPLETED', notifPromises),
       makeRun('', '0x556A', 'COMPLETED', notifPromises),
