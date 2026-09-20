@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Button, Card } from "@sibyl/ui";
+import { Card } from "@sibyl/ui";
 
 export default function CompliancePage() {
   
@@ -92,9 +92,9 @@ All security-relevant mutations are written to an immutable append-only audit lo
             <p className="text-sm text-muted mb-6">
               Generates a comprehensive Markdown document mapping your current configuration to SOC 2 Trust Services Criteria (CC6.1, CC6.3, CC6.6, CC7.1).
             </p>
-            <Button onClick={handleDownload} className="w-full bg-gold text-ink hover:bg-gold/90 font-bold">
+            <button onClick={handleDownload} className="w-full py-2 rounded bg-gold text-ink hover:bg-gold/90 font-bold transition-colors">
               Download Report (.md)
-            </Button>
+            </button>
           </Card>
           
         </div>

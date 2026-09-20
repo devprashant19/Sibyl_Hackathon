@@ -31,8 +31,27 @@ export function createPromiseContext(runId: string, events: CapturedEvent[]): Pr
 }
 
 export async function executePromise(promise: ProgrammaticPromise, ctx: PromiseContext, timestamp: number): Promise<PromiseResult> {
-  const res = await promise.evaluate(ctx);
-  const isBool = typeof res === 'boolean';
+  let res: any;
+  try {
+    res = await promise.evaluate(ctx);
+  } catch (e: any) {
+    res = {
+      passed: false,
+      message: `Promise evaluation crashed: ${e.message}`,
+      severity: promise.severity
+    };
+  }
+
+  let isBool = typeof res === 'boolean';
+  
+  if (!isBool && (res === null || typeof res !== 'object' || typeof res.passed !== 'boolean')) {
+    res = {
+      passed: false,
+      message: `Promise evaluation returned invalid result type: ${JSON.stringify(res)}`,
+      severity: promise.severity
+    };
+    isBool = false;
+  }
   
   return {
     promiseId: promise.id,

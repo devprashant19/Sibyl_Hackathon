@@ -16,10 +16,12 @@ export class CpuFaultDriver implements FaultDriver {
   context?: DriverContext;
 
   install(context: DriverContext) {
+    if (this.context) return;
     this.context = context;
   }
 
   uninstall() {
+    if (!this.context) return;
     this.context = undefined;
     stopWatchdog();
     stopCpuPressure();
@@ -41,10 +43,12 @@ export class MemoryFaultDriver implements FaultDriver {
   context?: DriverContext;
 
   install(context: DriverContext) {
+    if (this.context) return;
     this.context = context;
   }
 
   uninstall() {
+    if (!this.context) return;
     this.context = undefined;
     stopWatchdog();
     stopMemoryPressure();

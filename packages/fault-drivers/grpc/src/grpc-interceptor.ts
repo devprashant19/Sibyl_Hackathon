@@ -1,8 +1,8 @@
-import { Interceptor, InterceptorOptions, InterceptorNextCall, InterceptingCall, Metadata, status } from '@grpc/grpc-js';
+import { Interceptor, InterceptorOptions, NextCall, InterceptingCall, Metadata, status } from '@grpc/grpc-js';
 import type { GrpcFaultDriver } from './index';
 
 export function createSibylGrpcInterceptor(driver: GrpcFaultDriver): Interceptor {
-  return (options: InterceptorOptions, nextCall: InterceptorNextCall) => {
+  return (options: InterceptorOptions, nextCall: NextCall) => {
     const method = options.method_definition.path; // e.g., '/helloworld.Greeter/SayHello'
 
     let fault: any = null;

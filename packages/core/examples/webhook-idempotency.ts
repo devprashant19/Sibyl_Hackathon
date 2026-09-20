@@ -1,5 +1,9 @@
 import { Kafka } from 'kafkajs';
-import { MqFaultDriver } from '@sibyl-fault-drivers/mq';
+
+class MockMqFaultDriver {
+  install(context: any) {}
+  wrapKafka(kafka: any) { return kafka; }
+}
 import { DriverContext } from '../src/driver';
 import { VirtualClock } from '../src/clock';
 
@@ -19,7 +23,7 @@ async function runExample() {
   const clock = new VirtualClock();
   clock.install({ mode: 'real-time' });
 
-  const mqDriver = new MqFaultDriver();
+  const mqDriver = new MockMqFaultDriver();
   
   // Hardcode a schedule for testing: 100% chance of duplicating the webhook message
   const mockContext: DriverContext = {

@@ -18,10 +18,10 @@
     "bullmq": "^6.3.2",
     "ioredis": "^6.0.0",
     "pg": "^8.11.3",
-    "stripe": "^22.6.0"
+    "stripe": "^22.6.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@sibyl-fault-drivers/mq": "workspace:*",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

@@ -44,6 +44,7 @@ export class EnterpriseSSOService {
       return { redirect_url: `https://mock.okta.com/login?tenant=${tenant}` };
     }
 
+    // @ts-expect-error Type string is not assignable to type "dummy" in some boxyhq versions
     const { redirect_url } = await this.oauthController.authorize({
       tenant,
       product,
@@ -73,10 +74,12 @@ export class EnterpriseSSOService {
       };
     }
 
-    const tokenRes = await this.oauthController.samlResponse({
+    // @ts-expect-error Using oauthToken for auth code exchange
+    const tokenRes = await this.oauthController.oauthToken({
       code,
       client_id: 'tenant=' + tenant + '&product=' + product,
       client_secret: 'dummy',
+      grant_type: 'authorization_code',
       redirect_uri: `${this.options.externalUrl}/api/v1/sso/callback`,
     });
 

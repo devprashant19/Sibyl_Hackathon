@@ -23,7 +23,8 @@ export class SimulationEngine {
   // We keep this for backwards compatibility with single-run mode.
   installDriver(driver: FaultDriver) {
     if (this.drivers.has(driver.domain)) {
-      throw new Error(`Driver for domain ${driver.domain} is already installed.`);
+      console.warn(`Driver for domain ${driver.domain} is already installed.`);
+      return;
     }
 
     const context: DriverContext = {

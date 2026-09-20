@@ -177,10 +177,11 @@ export type FaultScheduleTemplate = z.infer<typeof FaultScheduleTemplateSchema>;
 export const SimulationRunSchema = z.object({
   id: z.string().uuid(),
   environment: SimulationEnvironmentSchema,
-  status: z.enum(['PENDING', 'RUNNING', 'COMPLETED', 'FAILED']),
+  status: z.enum(['PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'ERRORED', 'INTERMITTENT']),
   schedules: z.array(FaultScheduleSchema),
   startedAt: z.number().optional(),
   completedAt: z.number().optional(),
+  error: z.string().optional(),
 });
 
 export type SimulationRun = z.infer<typeof SimulationRunSchema>;
@@ -210,6 +211,7 @@ export const PromiseResultSchema = z.object({
   message: z.string().optional(), // For custom assertions
   actualValue: z.number().optional(),
   evaluatedAt: z.number(),
+  intermittent: z.boolean().optional(),
 });
 
 export type PromiseResult = z.infer<typeof PromiseResultSchema>;

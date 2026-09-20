@@ -1,4 +1,0 @@
-test: load testing suite and benchmarks
-
-Additional updates:
-- style: perfect Appendix A reference implementation
