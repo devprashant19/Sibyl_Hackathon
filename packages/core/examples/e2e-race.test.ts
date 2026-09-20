@@ -3,7 +3,7 @@ import { SearchOrchestrator } from '../src/orchestrator';
 import { AsyncContext } from '../src/async-context';
 import { ProgrammaticPromise } from '../src/promise';
 import { FaultDriver, DriverContext } from '../src/driver';
-import { FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultScheduleTemplate } from '@sibyl/shared';
 
 // We'll simulate a race condition bug where reading and updating an inventory value
 // has a gap, and two concurrent requests can both successfully "checkout" the last item.

@@ -4,7 +4,7 @@ import { Ucb1SearchStrategy } from '../src/search/ucb1';
 import { MctsSearchStrategy } from '../src/search/mcts';
 import { BayesianSearchStrategy } from '../src/search/bayesian';
 import { ProgrammaticPromise, createPromiseContext } from '../src/promise';
-import { FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultScheduleTemplate } from '@sibyl/shared';
 import { AsyncContext } from '../src/async-context';
 
 describe('Search Strategy Benchmarks', () => {
