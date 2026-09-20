@@ -29,6 +29,9 @@ importers:
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.68.0
+        version: 8.68.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       vitest:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)(jsdom@30.0.1)(lightningcss@1.32.0)

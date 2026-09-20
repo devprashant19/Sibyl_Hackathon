@@ -100,13 +100,13 @@ describe('Worker job orchestration', () => {
 
   it('never deletes a lock another worker took over (a failing worker used to delete it)', async () => {
     const key = statusKey('run-123');
-    let redisRef: FakeRedis | undefined;
+    const holder: { redis?: FakeRedis } = {};
     const ctx = setup({
       crash: true,
       // Simulate our lock expiring mid-run and another worker acquiring it.
-      onStart: () => redisRef!.store.set(key, 'PROCESSING:someone-else'),
+      onStart: () => holder.redis!.store.set(key, 'PROCESSING:someone-else'),
     });
-    redisRef = ctx.redis;
+    holder.redis = ctx.redis;
     await expect(ctx.handler(job())).rejects.toThrow('Sandbox crash');
     expect(ctx.redis.store.get(key)).toBe('PROCESSING:someone-else');
   });
