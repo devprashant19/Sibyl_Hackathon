@@ -51,7 +51,8 @@
     {
       "group": "Deep Dives",
       "pages": [
-        "deep-dives/search-algorithms"
+        "deep-dives/search-algorithms",
+        "deep-dives/benchmarks"
       ]
     }
   ]

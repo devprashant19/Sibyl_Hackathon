@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sibyl — Foresight for production systems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,440;9..144,560;9..144,650&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0d1a;
+    --ink-2:#12162c;
+    --ink-3:#191f3d;
+    --line: rgba(237,230,214,0.10);
+    --parchment:#ece4d3;
+    --muted:#9aa0c0;
+    --gold:#caa53a;
+    --gold-dim: rgba(202,165,58,0.14);
+    --ember:#d6564c;
+    --ember-dim: rgba(214,86,76,0.14);
+    --violet:#5b4e8f;
+    --radius: 14px;
+    --display: 'Fraunces', serif;
+    --body: 'Manrope', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 1200px 600px at 15% -10%, rgba(91,78,143,0.25), transparent 60%),
+      radial-gradient(ellipse 900px 500px at 100% 0%, rgba(202,165,58,0.08), transparent 55%),
+      var(--ink);
+    color:var(--parchment);
+    font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{ color:inherit; }
+  ::selection{ background:var(--gold-dim); color:var(--gold); }
+  :focus-visible{ outline:2px solid var(--gold); outline-offset:3px; border-radius:4px; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 32px; }
+
+  /* ---------- NAV ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:50;
+    background:rgba(10,13,26,0.82);
+    backdrop-filter: blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1180px; margin:0 auto; padding:16px 32px;
+    display:flex; align-items:center; justify-content:space-between; gap:24px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; text-decoration:none; }
+  .brand-mark{ width:26px; height:26px; flex:none; }
+  .brand-name{
+    font-family:var(--display); font-weight:560; font-size:20px; letter-spacing:0.01em;
+    color:var(--parchment);
+  }
+  .tabs{ display:flex; gap:4px; background:var(--ink-2); border:1px solid var(--line); border-radius:999px; padding:4px; }
+  .tab-btn{
+    appearance:none; border:none; background:transparent; color:var(--muted);
+    font-family:var(--body); font-weight:600; font-size:13.5px; letter-spacing:0.01em;
+    padding:8px 16px; border-radius:999px; cursor:pointer; transition:color .2s ease, background .2s ease;
+  }
+  .tab-btn:hover{ color:var(--parchment); }
+  .tab-btn.active{ background:var(--gold); color:#1a1200; }
+  .nav-cta{
+    font-family:var(--body); font-weight:700; font-size:13.5px;
+    background:transparent; color:var(--parchment); border:1px solid var(--line);
+    padding:9px 18px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .nav-cta:hover{ border-color:var(--gold); background:var(--gold-dim); }
+
+  /* ---------- PAGES ---------- */
+  .page{ display:none; }
+  .page.active{ display:block; }
+
+  section{ padding:96px 0; }
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--gold); margin:0 0 18px;
+  }
+  h1{ font-family:var(--display); font-weight:560; line-height:1.04; letter-spacing:-0.01em; margin:0 0 22px; }
+  h2{ font-family:var(--display); font-weight:560; line-height:1.1; letter-spacing:-0.005em; margin:0 0 16px; }
+  .lede{ font-size:19px; line-height:1.6; color:var(--muted); max-width:640px; margin:0 0 36px; }
+
+  /* ---------- HERO ---------- */
+  .hero{ padding:104px 0 80px; }
+  .hero-grid{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:56px; align-items:center; }
+  .hero h1{ font-size:52px; }
+  .hero-ctas{ display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; }
+  .btn-primary, .btn-ghost{
+    font-family:var(--body); font-weight:700; font-size:14.5px; padding:13px 24px; border-radius:10px;
+    cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent;
+  }
+  .btn-primary{ background:var(--gold); color:#1a1200; }
+  .btn-primary:hover{ background:#dcb949; }
+  .btn-ghost{ background:transparent; border-color:var(--line); color:var(--parchment); }
+  .btn-ghost:hover{ border-color:var(--gold); color:var(--gold); }
+  .hero-foot{ margin-top:26px; font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+  /* ---------- Console/prophecy widget (signature element) ---------- */
+  .oracle{
+    background:linear-gradient(180deg, var(--ink-3), var(--ink-2));
+    border:1px solid var(--line); border-radius:16px; overflow:hidden;
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6);
+  }
+  .oracle-head{
+    display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line);
+    font-family:var(--mono); font-size:12px; color:var(--muted);
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; background:var(--line); }
+  .oracle-title{ margin-left:6px; }
+  .oracle-live{ margin-left:auto; display:flex; align-items:center; gap:6px; color:var(--gold); }
+  .live-dot{ width:6px; height:6px; border-radius:50%; background:var(--gold); animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1;} 50%{ opacity:0.25; } }
+  .oracle-body{ padding:22px 20px; font-family:var(--mono); font-size:13.5px; line-height:1.85; min-height:210px; }
+  .o-line{ white-space:pre-wrap; word-break:break-word; }
+  .o-cmd{ color:var(--parchment); }
+  .o-dim{ color:var(--muted); }
+  .o-fail{ color:var(--ember); }
+  .o-pass{ color:var(--gold); }
+  .caret{ display:inline-block; width:7px; height:15px; background:var(--gold); margin-left:2px; vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* ---------- Failure grid ---------- */
+  .grid-3{ display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+  .grid-2{ display:grid; grid-template-columns:repeat(2, 1fr); gap:18px; }
+  .card{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius); padding:26px;
+  }
+  .card h3{ font-family:var(--body); font-weight:700; font-size:16px; margin:0 0 8px; color:var(--parchment); }
+  .card p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--muted); }
+
+  /* ---------- Process ---------- */
+  .process{ display:grid; grid-template-columns:repeat(5,1fr); gap:16px; }
+  .step{ border-top:2px solid var(--line); padding-top:18px; position:relative; }
+  .step .num{ font-family:var(--mono); font-size:12px; color:var(--gold); display:block; margin-bottom:10px; }
+  .step h4{ font-family:var(--body); font-size:15px; font-weight:700; margin:0 0 8px; }
+  .step p{ margin:0; font-size:13.5px; color:var(--muted); line-height:1.55; }
+
+  /* ---------- Before/after ---------- */
+  .compare{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .compare-col{ border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+  .compare-head{ padding:16px 20px; font-family:var(--body); font-weight:800; font-size:14px; letter-spacing:0.02em; }
+  .compare-col.bad .compare-head{ background:var(--ember-dim); color:var(--ember); }
+  .compare-col.good .compare-head{ background:var(--gold-dim); color:var(--gold); }
+  .tl{ padding:6px 20px 20px; }
+  .tl-row{ display:grid; grid-template-columns:64px 1fr; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); }
+  .tl-row:last-child{ border-bottom:none; }
+  .tl-time{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .tl-text{ font-size:13.5px; color:var(--parchment); line-height:1.5; }
+
+  /* ---------- Quotes ---------- */
+  .quotes{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .quote{ border-left:2px solid var(--gold); padding:4px 0 4px 20px; }
+  .quote p{ font-family:var(--display); font-weight:440; font-size:19px; line-height:1.5; margin:0 0 14px; color:var(--parchment); }
+  .quote cite{ font-style:normal; font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+  /* ---------- Product page ---------- */
+  .domain-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .domain{ background:var(--ink-2); border:1px solid var(--line); border-radius:12px; padding:20px; }
+  .domain .tag{ font-family:var(--mono); font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; }
+  .domain h4{ margin:8px 0 6px; font-family:var(--body); font-size:15px; }
+  .domain p{ margin:0; font-size:13px; color:var(--muted); line-height:1.5; }
+
+  .code-block{
+    background:var(--ink-3); border:1px solid var(--line); border-radius:14px; padding:24px 26px;
+    font-family:var(--mono); font-size:13.5px; line-height:1.75; overflow-x:auto; color:var(--parchment);
+  }
+  .code-block .c-kw{ color:var(--violet-light, #a99bdc); }
+  .code-block .c-str{ color:var(--gold); }
+  .code-block .c-com{ color:var(--muted); }
+  .code-block .c-fn{ color:#8fb8d6; }
+
+  .callout{
+    display:flex; gap:18px; align-items:flex-start; background:var(--gold-dim); border:1px solid rgba(202,165,58,0.35);
+    border-radius:var(--radius); padding:22px 24px; margin-top:40px;
+  }
+  .callout .mark{ font-family:var(--display); font-size:28px; color:var(--gold); line-height:1; }
+  .callout p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--parchment); }
+
+  /* ---------- Pricing ---------- */
+  .price-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .plan{ background:var(--ink-2); border:1px solid var(--line); border-radius:16px; padding:30px; display:flex; flex-direction:column; }
+  .plan.feat{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset; }
+  .plan-badge{ font-family:var(--mono); font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px; }
+  .plan h3{ font-family:var(--display); font-size:24px; font-weight:560; margin:0 0 6px; }
+  .plan .price{ font-family:var(--body); font-size:15px; color:var(--muted); margin-bottom:18px; }
+  .plan .price b{ font-family:var(--display); font-size:30px; color:var(--parchment); font-weight:560; }
+  .plan ul{ list-style:none; padding:0; margin:0 0 26px; flex:1; }
+  .plan li{ font-size:13.5px; color:var(--muted); padding:9px 0; border-top:1px solid var(--line); }
+  .plan li:first-child{ border-top:none; }
+  .plan li::before{ content:'—  '; color:var(--gold); }
+
+  /* ---------- Console/Dashboard demo page ---------- */
+  .console-shell{ display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start; }
+  .run-list{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .run-list-head{ padding:16px 18px; font-family:var(--mono); font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid var(--line); }
+  .run-row{
+    display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line);
+    cursor:pointer; transition:background .15s ease;
+  }
+  .run-row:last-child{ border-bottom:none; }
+  .run-row:hover{ background:rgba(255,255,255,0.02); }
+  .run-row.selected{ background:var(--gold-dim); }
+  .badge{ font-family:var(--mono); font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:5px; letter-spacing:0.04em; }
+  .badge.pass{ background:var(--gold-dim); color:var(--gold); }
+  .badge.fail{ background:var(--ember-dim); color:var(--ember); }
+  .run-meta{ display:flex; flex-direction:column; gap:3px; }
+  .run-meta .id{ font-family:var(--mono); font-size:12.5px; color:var(--parchment); }
+  .run-meta .sub{ font-size:11.5px; color:var(--muted); }
+
+  .detail{ background:var(--ink-2); border:1px solid var(--line); border-radius:14px; padding:26px; min-height:420px; }
+  .detail-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; gap:16px; flex-wrap:wrap; }
+  .detail-top h3{ font-family:var(--body); font-size:17px; margin:0 0 4px; }
+  .detail-top .seed{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .detail-section-label{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold); margin:22px 0 10px; }
+  .event-timeline{ display:flex; flex-direction:column; gap:0; }
+  .event{ display:grid; grid-template-columns:20px 1fr auto; gap:12px; align-items:start; padding:10px 0; border-bottom:1px solid var(--line); }
+  .event:last-child{ border-bottom:none; }
+  .event .pip{ width:8px; height:8px; border-radius:50%; margin-top:5px; background:var(--muted); }
+  .event.faulted .pip{ background:var(--ember); }
+  .event .desc{ font-size:13px; color:var(--parchment); line-height:1.5; }
+  .event .desc .lbl{ color:var(--muted); }
+  .event .ms{ font-family:var(--mono); font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .evidence{ background:var(--ink-3); border:1px solid var(--line); border-radius:10px; padding:16px 18px; font-family:var(--mono); font-size:12.5px; line-height:1.7; color:var(--parchment); margin-top:8px; }
+
+  .run-sim{ margin-top:28px; padding-top:24px; border-top:1px dashed var(--line); }
+  .run-sim-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .progress-track{ flex:1; min-width:200px; height:8px; background:var(--ink-3); border-radius:999px; overflow:hidden; border:1px solid var(--line); }
+  .progress-fill{ height:100%; width:0%; background:var(--gold); transition:width .25s linear; }
+  .sim-result{ margin-top:16px; font-size:13.5px; line-height:1.6; }
+  .sim-result.hidden{ display:none; }
+
+  footer{ border-top:1px solid var(--line); padding:48px 0 60px; }
+  .foot-row{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; }
+  .foot-links{ display:flex; gap:22px; font-size:13px; color:var(--muted); }
+  .foot-links a{ text-decoration:none; }
+  .foot-links a:hover{ color:var(--gold); }
+  .fine{ font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+
+  @media (max-width: 900px){
+    .hero-grid, .grid-3, .grid-2, .process, .compare, .quotes, .domain-grid, .price-grid, .console-shell{ grid-template-columns:1fr; }
+    .hero h1{ font-size:38px; }
+    .tabs{ display:none; }
+    .wrap{ padding:0 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" onclick="return false;">
+      <svg class="brand-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M16 3C16 3 22 9 22 16C22 23 16 29 16 29C16 29 10 23 10 16C10 9 16 3 16 3Z" stroke="#caa53a" stroke-width="1.4"/>
+        <path d="M4 16C4 16 9 11.5 16 11.5C23 11.5 28 16 28 16C28 16 23 20.5 16 20.5C9 20.5 4 16 4 16Z" stroke="#caa53a" stroke-width="1.4"/>
+        <circle cx="16" cy="16" r="2.1" fill="#caa53a"/>
+      </svg>
+      <span class="brand-name">Sibyl</span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Site sections">
+      <button class="tab-btn active" role="tab" aria-selected="true" data-page="home">Home</button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-page="product">Product</button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-page="pricing">Pricing</button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-page="console">Console</button>
+    </nav>
+    <button class="nav-cta" data-page-jump="console">Start free</button>
+  </div>
+</div>
+
+<!-- ============ HOME ============ -->
+<main class="page active" id="page-home">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Foresight for production systems</p>
+        <h1>See the failure<br>before your customers do.</h1>
+        <p class="lede">Sibyl runs your real workflows through thousands of simulated futures — dropped connections, duplicate webhooks, mistimed retries — and tells you exactly which one breaks a promise your system can't afford to break.</p>
+        <div class="hero-ctas">
+          <button class="btn-primary" data-page-jump="console">Start free</button>
+          <button class="btn-ghost" data-page-jump="product">See how it works</button>
+        </div>
+        <p class="hero-foot">Node.js · Python · Java · Go &nbsp;·&nbsp; Runs in your own infra &nbsp;·&nbsp; Every run reproducible from a single seed</p>
+      </div>
+      <div class="oracle" aria-label="Live simulated run output">
+        <div class="oracle-head">
+          <span class="dot" style="background:#d6564c"></span>
+          <span class="dot" style="background:#caa53a"></span>
+          <span class="dot" style="background:#5b4e8f"></span>
+          <span class="oracle-title">sibyl — live</span>
+          <span class="oracle-live"><span class="live-dot"></span>watching</span>
+        </div>
+        <div class="oracle-body" id="oracleBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">What we cover</p>
+      <h2>Nothing paged you. It still happened.</h2>
+      <p class="lede">No exception. No alert. Sibyl exists for the failures your monitoring was never built to catch.</p>
+      <div class="grid-3">
+        <div class="card"><h3>Silent success</h3><p>Returns 200 with the wrong body. The trace is green. The value that mattered was never logged anywhere.</p></div>
+        <div class="card"><h3>Race conditions</h3><p>Needs two operations to land at the exact same millisecond. Your test suite runs them one at a time, so it never sees it.</p></div>
+        <div class="card"><h3>Contract drift</h3><p>A vendor adds a new status value or field. Your parser has no case for it, and quietly does the wrong thing.</p></div>
+        <div class="card"><h3>Non-idempotent retries</h3><p>A retry after a timeout processes the same payment twice — or writes nothing at all, because the first attempt half-succeeded.</p></div>
+        <div class="card"><h3>Partial failures</h3><p>Step three of four fails. Steps one and two already committed. Nothing rolls back, and nothing notices.</p></div>
+        <div class="card"><h3>Resource exhaustion</h3><p>Works perfectly at 10 requests a second. At 400, the connection pool starves and everything downstream degrades.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">How Sibyl works</p>
+      <h2>Five steps, every time.</h2>
+      <div class="process">
+        <div class="step"><span class="num">01</span><h4>Divine</h4><p>Declare the promises your system can't break — "every charge gets a receipt," "no message is processed twice."</p></div>
+        <div class="step"><span class="num">02</span><h4>Provoke</h4><p>Sibyl injects real failure conditions at your app's actual boundaries — HTTP, database, queues, the clock itself.</p></div>
+        <div class="step"><span class="num">03</span><h4>Witness</h4><p>Every run is seeded and deterministic. The exact conditions that caused a failure can always be replayed on demand.</p></div>
+        <div class="step"><span class="num">04</span><h4>Interpret</h4><p>An agent explains the break in plain language, grounded in the exact events captured — never a guess.</p></div>
+        <div class="step"><span class="num">05</span><h4>Confirm</h4><p>Ship the fix. The promise becomes a permanent regression test, so the same incident can't happen twice.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">One incident, start to finish</p>
+      <h2>The same bug. Two realities.</h2>
+      <div class="compare">
+        <div class="compare-col bad">
+          <div class="compare-head">Without Sibyl</div>
+          <div class="tl">
+            <div class="tl-row"><span class="tl-time">02:47</span><span class="tl-text">Error rate alarm fires. Engineer paged. No exception in the logs.</span></div>
+            <div class="tl-row"><span class="tl-time">03:10</span><span class="tl-text">Stack trace points to line 82. The value that mattered was set several frames up.</span></div>
+            <div class="tl-row"><span class="tl-time">03:40</span><span class="tl-text">Adds a log line. Deploys. Waits for the condition to happen again in production.</span></div>
+            <div class="tl-row"><span class="tl-time">04:15</span><span class="tl-text">First log visible. Not enough. Another log line, another deploy cycle.</span></div>
+            <div class="tl-row"><span class="tl-time">05:20</span><span class="tl-text">Root cause confirmed after three redeploys. Two hours, thirty-three minutes.</span></div>
+          </div>
+        </div>
+        <div class="compare-col good">
+          <div class="compare-head">With Sibyl</div>
+          <div class="tl">
+            <div class="tl-row"><span class="tl-time">02:47</span><span class="tl-text">Same bug, caught the day before release — a scheduled run found it first.</span></div>
+            <div class="tl-row"><span class="tl-time">02:48</span><span class="tl-text">Fault schedule: webhook fires twice, 40ms apart, under load.</span></div>
+            <div class="tl-row"><span class="tl-time">02:49</span><span class="tl-text">Promise fails. Exact request/response state captured at the moment it broke.</span></div>
+            <div class="tl-row"><span class="tl-time">02:51</span><span class="tl-text">Root cause: gateway sends "pending," code has no handler, idempotency key locks the payment out.</span></div>
+            <div class="tl-row"><span class="tl-time">02:53</span><span class="tl-text">Fix committed. Seed 0x8f2c saved as a permanent regression test.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">Said by people who run things at 3am</p>
+      <div class="quotes">
+        <div class="quote">
+          <p>We assumed our retry logic was safe because it had never failed a code review. Sibyl found the exact timing window where it wasn't, in about four minutes.</p>
+          <cite>— Staff engineer, payments infrastructure</cite>
+        </div>
+        <div class="quote">
+          <p>The seed replay is the part that changed how we work. A bug stops being "it happened once and we're not sure why" and becomes a command we can run again.</p>
+          <cite>— SRE lead, logistics platform</cite>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ PRODUCT ============ -->
+<main class="page" id="page-product">
+  <section style="padding-top:72px;">
+    <div class="wrap">
+      <p class="eyebrow">Product</p>
+      <h2 style="font-size:38px;">Fault injection at every boundary your app actually has.</h2>
+      <p class="lede">Not just HTTP. Sibyl instruments the real edges where distributed systems fail.</p>
+      <div class="domain-grid">
+        <div class="domain"><span class="tag">HTTP</span><h4>Outbound calls</h4><p>Timeouts, dropped connections, 5xx, slow or partial responses, DNS failures.</p></div>
+        <div class="domain"><span class="tag">Database</span><h4>Queries &amp; transactions</h4><p>Query timeouts, deadlocks, connection drops mid-query, partial commits.</p></div>
+        <div class="domain"><span class="tag">Queue</span><h4>Kafka, SQS</h4><p>Duplicate delivery, message loss, out-of-order delivery, consumer crash mid-processing.</p></div>
+        <div class="domain"><span class="tag">gRPC</span><h4>Service calls</h4><p>Deadline exceeded, unavailable, resource exhausted status codes.</p></div>
+        <div class="domain"><span class="tag">Filesystem</span><h4>Disk I/O</h4><p>Disk full, slow I/O, permission denied, torn/partial writes.</p></div>
+        <div class="domain"><span class="tag">Clock</span><h4>Time itself</h4><p>Clock skew and time jumps, tested without waiting real wall-clock time.</p></div>
+        <div class="domain"><span class="tag">Process</span><h4>Crash recovery</h4><p>Crash, OOM-kill, SIGTERM mid-operation — inside an isolated sandbox, never your host.</p></div>
+        <div class="domain"><span class="tag">Resources</span><h4>Memory &amp; CPU</h4><p>Real, bounded resource pressure to see how your app degrades under contention.</p></div>
+      </div>
+
+      <div style="margin-top:60px;">
+        <p class="eyebrow">The promise DSL</p>
+        <h2 style="font-size:26px;">Say what must never break. In code.</h2>
+        <div class="code-block"><span class="c-kw">import</span> { definePromise } <span class="c-kw">from</span> <span class="c-str">'@sibyl/sdk'</span>;
+
+<span class="c-kw">export const</span> everyChargeGetsAReceipt = <span class="c-fn">definePromise</span>({
+  name: <span class="c-str">'every charge gets a receipt'</span>,
+  check: <span class="c-kw">async</span> (ctx) => {
+    <span class="c-kw">const</span> charges  = <span class="c-kw">await</span> ctx.query(<span class="c-str">"SELECT id FROM charges WHERE status = 'succeeded'"</span>);
+    <span class="c-kw">const</span> receipts = <span class="c-kw">await</span> ctx.query(<span class="c-str">'SELECT charge_id FROM receipts'</span>);
+    <span class="c-kw">const</span> missing  = charges.filter(c => !receipts.some(r => r.charge_id === c.id));
+    <span class="c-com">// held: true unless a charge slipped through with no receipt</span>
+    <span class="c-kw">return</span> missing.length === 0
+      ? { held: <span class="c-kw">true</span> }
+      : { held: <span class="c-kw">false</span>, evidence: { missingChargeIds: missing.map(c => c.id) } };
+  }
+});</div>
+        <div class="callout">
+          <span class="mark">§</span>
+          <p><strong>Deterministic, always.</strong> Every run carries a seed. Given the same seed and the same fault schedule, Sibyl makes the exact same fault-or-not decision, in the exact same order, every time — so a failure you found once can be replayed on command, not chased again.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ PRICING ============ -->
+<main class="page" id="page-pricing">
+  <section style="padding-top:72px;">
+    <div class="wrap">
+      <p class="eyebrow">Pricing</p>
+      <h2 style="font-size:38px;">Priced per service. Never per engineer.</h2>
+      <p class="lede">Unlimited runs and captures on every plan. You should never hit a wall mid-investigation.</p>
+      <div class="price-grid">
+        <div class="plan">
+          <span class="plan-badge">Free</span>
+          <h3>Seer</h3>
+          <div class="price"><b>$0</b> forever</div>
+          <ul>
+            <li>1 project</li>
+            <li>Unlimited runs &amp; promises</li>
+            <li>7-day run history</li>
+            <li>Community support</li>
+          </ul>
+          <button class="btn-ghost" data-page-jump="console">Get started</button>
+        </div>
+        <div class="plan feat">
+          <span class="plan-badge">Most teams</span>
+          <h3>Oracle</h3>
+          <div class="price"><b>$99</b> /service/mo <span style="display:block;font-size:12px;margin-top:4px;">$79 billed annually · 3 service minimum</span></div>
+          <ul>
+            <li>Unlimited projects</li>
+            <li>30-day run history</li>
+            <li>Coverage-guided &amp; MCTS search</li>
+            <li>Shared workspace, comments &amp; assignment</li>
+            <li>Slack, PagerDuty, Linear/Jira integrations</li>
+          </ul>
+          <button class="btn-primary" data-page-jump="console">Start free trial</button>
+        </div>
+        <div class="plan">
+          <span class="plan-badge">Enterprise</span>
+          <h3>Pythia</h3>
+          <div class="price"><b>Custom</b> annual contract</div>
+          <ul>
+            <li>Self-hosted or private VPC</li>
+            <li>SSO/SAML &amp; SCIM provisioning</li>
+            <li>RBAC, audit log, compliance reports</li>
+            <li>Custom data-residency &amp; retention</li>
+          </ul>
+          <button class="btn-ghost">Talk to us</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ CONSOLE (dashboard demo) ============ -->
+<main class="page" id="page-console">
+  <section style="padding-top:72px;">
+    <div class="wrap">
+      <p class="eyebrow">Console</p>
+      <h2 style="font-size:34px;">This is a live look at the dashboard.</h2>
+      <p class="lede">Click a run to see what Sibyl captured. Or trigger a new one below.</p>
+
+      <div class="console-shell">
+        <div class="run-list" role="list" aria-label="Recent simulation runs">
+          <div class="run-list-head">Recent runs · checkout-service</div>
+          <div id="runListItems"></div>
+        </div>
+
+        <div class="detail" id="detailPanel"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-row">
+    <div class="fine">© 2026 Sibyl · Runs in your own infra</div>
+    <div class="foot-links">
+      <a href="#" onclick="return false;">Docs</a>
+      <a href="#" onclick="return false;">Changelog</a>
+      <a href="#" onclick="return false;">Security</a>
+      <a href="#" onclick="return false;">Status</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // ---------- Tab navigation ----------
+  var tabs = document.querySelectorAll('.tab-btn');
+  var pages = document.querySelectorAll('.page');
+  function showPage(name){
+    pages.forEach(function(p){ p.classList.toggle('active', p.id === 'page-' + name); });
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-page') === name;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ showPage(t.getAttribute('data-page')); });
+  });
+  document.querySelectorAll('[data-page-jump]').forEach(function(el){
+    el.addEventListener('click', function(){ showPage(el.getAttribute('data-page-jump')); });
+  });
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Hero oracle console ----------
+  var visions = [
+    [
+      { t:'cmd', v:'$ sibyl run checkout --iterations 400 --faults bank-api-outage' },
+      { t:'dim', v:'searching 400 seeds under simulated outage…' },
+      { t:'fail', v:'seed 0x8f2c → FAIL — every charge gets a receipt' },
+      { t:'dim', v:'gateway sent "pending" · no handler existed · idempotency key locked payment out' }
+    ],
+    [
+      { t:'cmd', v:'$ sibyl run order-consumer --faults kafka-duplicate-delivery' },
+      { t:'dim', v:'redelivering 1 message, 40ms after first ack…' },
+      { t:'fail', v:'seed 0x2b91 → FAIL — no order is fulfilled twice' },
+      { t:'dim', v:'consumer re-processed the duplicate before the idempotency table was checked' }
+    ],
+    [
+      { t:'cmd', v:'$ sibyl run payout-job --iterations 900 --faults db-deadlock' },
+      { t:'dim', v:'searching 900 seeds…' },
+      { t:'pass', v:'900 / 900 → PASS — every payout is recorded exactly once' },
+      { t:'dim', v:'no violating schedule found in this budget · promise holds' }
+    ]
+  ];
+
+  var oracleBody = document.getElementById('oracleBody');
+  var vi = 0;
+
+  function typeLines(lines, done){
+    oracleBody.innerHTML = '';
+    var li = 0;
+    function nextLine(){
+      if (li >= lines.length){ if (done) done(); return; }
+      var row = document.createElement('div');
+      row.className = 'o-line o-' + (lines[li].t === 'cmd' ? 'cmd' : lines[li].t);
+      oracleBody.appendChild(row);
+      var text = lines[li].v;
+      if (reduceMotion){
+        row.textContent = text;
+        li++;
+        setTimeout(nextLine, 260);
+        return;
+      }
+      var ci = 0;
+      var caret = document.createElement('span');
+      caret.className = 'caret';
+      function typeChar(){
+        row.textContent = text.slice(0, ci);
+        row.appendChild(caret);
+        if (ci < text.length){ ci++; setTimeout(typeChar, 12); }
+        else { row.removeChild(caret); li++; setTimeout(nextLine, 380); }
+      }
+      typeChar();
+    }
+    nextLine();
+  }
+
+  function cycleOracle(){
+    typeLines(visions[vi], function(){
+      setTimeout(function(){
+        vi = (vi + 1) % visions.length;
+        cycleOracle();
+      }, 2600);
+    });
+  }
+  cycleOracle();
+
+  // ---------- Console / dashboard demo ----------
+  var runs = [
+    { id:'01JD4KQ8', status:'fail', label:'Payment retry, bank API down', when:'2m ago', seed:'0x8f2c',
+      events:[
+        { f:false, lbl:'POST', desc:'/api/orders — create order', ms:'12ms' },
+        { f:true,  lbl:'FAULT', desc:'bank-api → connection timeout injected', ms:'—' },
+        { f:false, lbl:'RETRY', desc:'order-service retries payment call', ms:'340ms' },
+        { f:true,  lbl:'WEBHOOK', desc:'gateway sends status="pending" — unhandled', ms:'2ms' }
+      ],
+      promise:'every charge gets a receipt', held:false,
+      evidence:'status     = "pending"   ← gateway sending this, no handler exists\nduplicate  = null       ← first time seen, passes through\ndb.insert  → never called\nredis.set  → called anyway, payment locked out permanently' },
+    { id:'01JD4KP2', status:'fail', label:'Transfer during DB failover', when:'18m ago', seed:'0x2b91',
+      events:[
+        { f:false, lbl:'BEGIN', desc:'transaction opened on primary replica', ms:'1ms' },
+        { f:true,  lbl:'FAULT', desc:'primary replica → forced failover mid-transaction', ms:'—' },
+        { f:false, lbl:'COMMIT', desc:'transaction resumes on new primary', ms:'88ms' }
+      ],
+      promise:'no transfer is applied twice', held:false,
+      evidence:'ledger_entry[142] applied on old primary before failover\nledger_entry[142] re-applied on new primary — same idempotency key not checked' },
+    { id:'01JD4KM7', status:'pass', label:'Concurrent refund attempt', when:'1h ago', seed:'0x77ac',
+      events:[
+        { f:false, lbl:'POST', desc:'/api/refunds — two concurrent requests', ms:'4ms' },
+        { f:true,  lbl:'FAULT', desc:'50ms delay injected on second request', ms:'—' },
+        { f:false, lbl:'LOCK', desc:'refund row locked by first request', ms:'2ms' }
+      ],
+      promise:'no order is refunded twice', held:true,
+      evidence:'refund_count for order #5521 = 1\nsecond request correctly rejected with 409 Conflict' },
+    { id:'01JD4KL0', status:'pass', label:'Webhook burst, 3x duplicate', when:'3h ago', seed:'0x19f4',
+      events:[
+        { f:true,  lbl:'FAULT', desc:'webhook redelivered 3 times, 10ms apart', ms:'—' },
+        { f:false, lbl:'DEDUPE', desc:'idempotency key check short-circuits duplicates', ms:'3ms' }
+      ],
+      promise:'every webhook is processed exactly once', held:true,
+      evidence:'events received: 3\nevents applied: 1\nduplicates rejected: 2' }
+  ];
+
+  var runListItems = document.getElementById('runListItems');
+  var detailPanel = document.getElementById('detailPanel');
+  var selectedId = null;
+
+  function renderRunList(){
+    runListItems.innerHTML = '';
+    runs.forEach(function(r){
+      var row = document.createElement('div');
+      row.className = 'run-row' + (r.id === selectedId ? ' selected' : '');
+      row.setAttribute('role','listitem');
+      row.setAttribute('tabindex','0');
+      row.innerHTML =
+        '<span class="badge ' + r.status + '">' + r.status.toUpperCase() + '</span>' +
+        '<span class="run-meta"><span class="id">' + r.id + '</span><span class="sub">' + r.label + ' · ' + r.when + '</span></span>';
+      row.addEventListener('click', function(){ selectRun(r.id); });
+      row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectRun(r.id); } });
+      runListItems.appendChild(row);
+    });
+  }
+
+  function renderDetail(run){
+    if (!run){
+      detailPanel.innerHTML = '<p style="color:var(--muted);font-size:14px;">Select a run to see what Sibyl captured.</p>';
+      return;
+    }
+    var eventsHtml = run.events.map(function(e){
+      return '<div class="event' + (e.f ? ' faulted' : '') + '">' +
+        '<span class="pip"></span>' +
+        '<span class="desc"><span class="lbl">' + e.lbl + '</span> — ' + e.desc + '</span>' +
+        '<span class="ms">' + e.ms + '</span></div>';
+    }).join('');
+    detailPanel.innerHTML =
+      '<div class="detail-top">' +
+        '<div><h3>' + run.label + '</h3><span class="seed">seed ' + run.seed + ' · run ' + run.id + '</span></div>' +
+        '<span class="badge ' + run.status + '">' + run.status.toUpperCase() + '</span>' +
+      '</div>' +
+      '<div class="detail-section-label">Event timeline</div>' +
+      '<div class="event-timeline">' + eventsHtml + '</div>' +
+      '<div class="detail-section-label">Promise: ' + run.promise + '</div>' +
+      '<div class="evidence">' + run.evidence.replace(/\n/g,'<br>') + '</div>';
+  }
+
+  function selectRun(id){
+    selectedId = id;
+    renderRunList();
+    renderDetail(runs.find(function(r){ return r.id === id; }));
+  }
+
+  // simulate-a-run control
+  var simResults = [
+    { status:'fail', line:'FAIL — every charge gets a receipt. Gateway sent "pending", no handler existed.' },
+    { status:'pass', line:'PASS — 300/300 seeds held. No violating schedule found in this budget.' },
+    { status:'fail', line:'FAIL — no message is processed twice. Duplicate delivery beat the idempotency check by 6ms.' }
+  ];
+  var simIdx = 0;
+
+  function buildSimControl(){
+    var box = document.createElement('div');
+    box.className = 'run-sim';
+    box.innerHTML =
+      '<div class="detail-section-label" style="margin-top:0;">Run a new simulation</div>' +
+      '<div class="run-sim-row">' +
+        '<button class="btn-primary" id="simBtn">Run 300 seeds</button>' +
+        '<div class="progress-track"><div class="progress-fill" id="simFill"></div></div>' +
+      '</div>' +
+      '<div class="sim-result hidden" id="simResult"></div>';
+    return box;
+  }
+
+  function attachSimControl(){
+    // append below detail panel, once
+    if (document.getElementById('simBtn')) return;
+    var container = document.querySelector('#page-console .wrap');
+    var control = buildSimControl();
+    container.appendChild(control);
+    document.getElementById('simBtn').addEventListener('click', function(){
+      var btn = document.getElementById('simBtn');
+      var fill = document.getElementById('simFill');
+      var resultBox = document.getElementById('simResult');
+      btn.disabled = true;
+      resultBox.classList.add('hidden');
+      fill.style.width = '0%';
+      var duration = reduceMotion ? 50 : 1800;
+      var start = performance.now();
+      function step(now){
+        var pct = Math.min(100, ((now - start) / duration) * 100);
+        fill.style.width = pct + '%';
+        if (pct < 100){ requestAnimationFrame(step); }
+        else {
+          var res = simResults[simIdx % simResults.length];
+          simIdx++;
+          resultBox.className = 'sim-result';
+          resultBox.innerHTML = '<span class="badge ' + res.status + '" style="margin-right:8px;">' + res.status.toUpperCase() + '</span>' + res.line;
+          btn.disabled = false;
+        }
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  renderRunList();
+  renderDetail(null);
+  attachSimControl();
+})();
+</script>
+</body>
+</html>
