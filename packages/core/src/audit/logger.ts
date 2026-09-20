@@ -1,3 +1,5 @@
+import * as crypto from 'crypto';
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -10,65 +12,79 @@ export interface AuditLogEntry {
   ipAddress: string;
 }
 
-// In v1, we mock the immutable storage using an in-memory array.
-// In production, this would be an append-only PostgreSQL table or a 
-// write-once-read-many (WORM) storage system for strict SOC 2 compliance.
-const mockStore: AuditLogEntry[] = [
-  {
-    id: "aud_92j102j",
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    orgId: "org_default",
-    actorId: "alice@acme.inc",
-    actorRole: "OWNER",
-    action: "api_key.created",
-    resourceId: "key_77x2",
-    details: { name: "CI/CD Runner" },
-    ipAddress: "192.168.1.1"
+/** Backing store for audit entries. Must be append-only; the default keeps them in memory. */
+export interface AuditLogSink {
+  append(entry: Readonly<AuditLogEntry>): Promise<void>;
+  list(orgId: string): Promise<AuditLogEntry[]>;
+}
+
+const MAX_IN_MEMORY_ENTRIES = 10_000;
+
+export class InMemoryAuditLogSink implements AuditLogSink {
+  private entries: Readonly<AuditLogEntry>[] = [];
+
+  async append(entry: Readonly<AuditLogEntry>) {
+    this.entries.push(entry);
+    // Bounded, so a long-lived process does not grow without limit. Durable deployments should
+    // supply a database-backed sink instead.
+    if (this.entries.length > MAX_IN_MEMORY_ENTRIES) this.entries.shift();
   }
-];
+
+  async list(orgId: string) {
+    return this.entries.filter(e => e.orgId === orgId).map(e => structuredClone(e) as AuditLogEntry);
+  }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
+  return value;
+}
+
+let sink: AuditLogSink = new InMemoryAuditLogSink();
 
 export class AuditLogger {
-  
+  static setSink(next: AuditLogSink) {
+    sink = next;
+  }
+
   /**
-   * Records a security-relevant event to the immutable audit log.
+   * Records a security-relevant event. Entries are frozen when written and copied when read, so a
+   * caller cannot edit history through a reference (the old store handed out its own objects, and
+   * came pre-seeded with a fabricated entry).
    */
   public static async log(
-    orgId: string, 
-    actorId: string, 
+    orgId: string,
+    actorId: string,
     actorRole: string,
-    action: string, 
+    action: string,
     details: Record<string, any> = {},
     resourceId?: string,
     ipAddress: string = "unknown"
   ) {
-    const entry: AuditLogEntry = {
-      id: `aud_${Math.random().toString(36).substring(2, 9)}`,
+    const entry: AuditLogEntry = deepFreeze({
+      id: `aud_${crypto.randomUUID()}`,
       timestamp: new Date().toISOString(),
       orgId,
       actorId,
       actorRole,
       action,
       resourceId,
-      details,
+      details: structuredClone(details),
       ipAddress
-    };
-
-    console.log(`[AuditLog] ${action} by ${actorId} (${actorRole})`);
-    
-    mockStore.push(entry);
-    
-    // Simulating async DB insert
-    await new Promise(r => setTimeout(r, 10)); 
+    });
+    await sink.append(entry);
+    return entry;
   }
 
   /**
-   * Retrieves chronological audit logs for an organization.
+   * Retrieves audit logs for an organization, newest first.
    * Typically restricted to ADMIN and OWNER roles.
    */
   public static async getLogs(orgId: string): Promise<AuditLogEntry[]> {
-    // Sort descending by timestamp
-    return mockStore
-      .filter(log => log.orgId === orgId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const logs = await sink.list(orgId);
+    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 }
