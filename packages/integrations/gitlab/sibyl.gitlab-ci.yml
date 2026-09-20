@@ -1,0 +1,26 @@
+# Sibyl GitLab CI Component
+# Include this file in your .gitlab-ci.yml to run chaos simulations.
+
+spec:
+  inputs:
+    target:
+      description: "Path to your sibyl.config.ts"
+      default: "sibyl.config.ts"
+    iterations:
+      description: "Number of permutations to test"
+      default: "100"
+    image:
+      description: "Docker image to run the simulation in"
+      default: "node:20-alpine"
+
+---
+
+sibyl_chaos_test:
+  stage: test
+  image: $[[ inputs.image ]]
+  script:
+    - echo "Running Sibyl Chaos Engine..."
+    - npx @sibyl/cli ci --target $[[ inputs.target ]] --iterations $[[ inputs.iterations ]]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

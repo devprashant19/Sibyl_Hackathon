@@ -6,6 +6,7 @@ export * from './promise';
 export * from './async-context';
 export * from './orchestrator';
 export * from './calendar';
+export * from './github-app';
 export * from './search/strategy';
 export * from './search/ucb1';
 export * from './search/mcts';

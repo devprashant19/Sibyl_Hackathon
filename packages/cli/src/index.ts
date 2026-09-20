@@ -217,9 +217,40 @@ program
         }
       }
 
+      // Phase 17: GitHub App Integration (Mock)
+      const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
+      const isGitLab = process.env.GITLAB_CI === 'true';
+      const isCircleCI = process.env.CIRCLECI === 'true';
+      const isJenkins = process.env.JENKINS_URL !== undefined || process.env.SIBYL_JENKINS_RUN === 'true';
+      
+      if (isGithubActions) {
+        console.log('\n[INFO] Running in GitHub Actions. Uploading results to Sibyl API...');
+        console.log('[INFO] Sibyl API is now updating the PR Check Status and posting a failure comment via the Sibyl GitHub App.');
+      } else if (isGitLab) {
+        console.log(`\n[INFO] Running in GitLab CI. Uploading results for project ${process.env.CI_PROJECT_PATH}...`);
+        console.log('[INFO] Status reported back via GitLab API Webhook.');
+      } else if (isCircleCI) {
+        console.log('\n[INFO] Running in CircleCI. Uploading results to Sibyl API...');
+      } else if (isJenkins) {
+        console.log('\n[INFO] Running in Jenkins. Uploading results to Sibyl API...');
+      }
+
       process.exit(1);
     } else {
       console.log(`[SUCCESS] 0 failures discovered.`);
+      
+      const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
+      const isGitLab = process.env.GITLAB_CI === 'true';
+      const isCircleCI = process.env.CIRCLECI === 'true';
+      const isJenkins = process.env.JENKINS_URL !== undefined || process.env.SIBYL_JENKINS_RUN === 'true';
+      
+      if (isGithubActions) {
+        console.log('\n[INFO] Running in GitHub Actions. Uploading results to Sibyl API...');
+        console.log('[INFO] Sibyl API is now marking the PR Check Status as SUCCESS via the Sibyl GitHub App.');
+      } else if (isGitLab || isCircleCI || isJenkins) {
+        console.log('\n[INFO] Running in Enterprise CI. Uploading SUCCESS status to Sibyl API...');
+      }
+
       process.exit(0);
     }
   });

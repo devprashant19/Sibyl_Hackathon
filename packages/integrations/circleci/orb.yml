@@ -1,0 +1,43 @@
+version: 2.1
+description: |
+  Official CircleCI Orb for Sibyl Chaos Engineering.
+  Runs continuous reliability simulations natively in your CircleCI pipelines.
+
+executors:
+  default:
+    description: "Node.js environment for running Sibyl"
+    docker:
+      - image: cimg/node:20.0.0
+
+commands:
+  run-chaos:
+    description: "Executes the Sibyl Chaos Engine"
+    parameters:
+      target:
+        type: string
+        default: "sibyl.config.ts"
+        description: "Path to sibyl config file"
+      iterations:
+        type: integer
+        default: 100
+        description: "Number of permutations to evaluate"
+    steps:
+      - run:
+          name: Run Sibyl CI
+          command: npx @sibyl/cli ci --target <<parameters.target>> --iterations <<parameters.iterations>>
+
+jobs:
+  test:
+    executor: default
+    parameters:
+      target:
+        type: string
+        default: "sibyl.config.ts"
+      iterations:
+        type: integer
+        default: 100
+    steps:
+      - checkout
+      - run-chaos:
+          target: <<parameters.target>>
+          iterations: <<parameters.iterations>>
