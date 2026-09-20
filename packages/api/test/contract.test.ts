@@ -5,7 +5,7 @@ import {
   IngestEventsRequestSchema,
   ReportPromisesRequestSchema,
   GetRunResponseSchema
-} from '@sibyl-shared';
+} from '@sibyl/shared';
 
 const schemas: Record<string, any> = {
   IngestEventsRequest: IngestEventsRequestSchema,
