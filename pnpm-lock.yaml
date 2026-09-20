@@ -94,6 +94,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@sibyl-fault-drivers/http':
+        specifier: workspace:*
+        version: link:../fault-drivers/http
       '@sibyl/agent':
         specifier: workspace:*
         version: link:../agent
@@ -119,6 +122,12 @@ importers:
       '@types/cli-progress':
         specifier: ^3.11.6
         version: 3.11.6
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@20.19.43)(jsdom@30.0.1)(lightningcss@1.32.0)
 
   packages/core:
     dependencies:
