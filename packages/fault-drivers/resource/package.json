@@ -1,6 +1,7 @@
 {
   "name": "@sibyl-fault-drivers/resource",
   "version": "0.0.0",
+  "type": "module",
   "private": true,
   "main": "src/index.ts",
   "scripts": {
