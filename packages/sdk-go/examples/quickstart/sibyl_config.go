@@ -1,4 +1,4 @@
-package quickstart
+package main
 
 import (
 	"strings"
@@ -6,6 +6,8 @@ import (
 	"github.com/devprashant19/Sibyl/packages/sdk-go/sibyl"
 )
 
+// NoNegativeInventory is not evaluated by anything yet: there is no Go orchestrator. It shows the
+// intended shape of a promise over captured events.
 var NoNegativeInventory = sibyl.Promise{
 	ID:          "no-negative-inventory",
 	Severity:    "CRITICAL",
@@ -19,7 +21,8 @@ var NoNegativeInventory = sibyl.Promise{
 		for _, u := range updates {
 			args, ok := u.Payload["args"].([]interface{})
 			if ok && len(args) > 0 {
-				if newInventory, isInt := args[0].(int); isInt && newInventory < 0 {
+				// database/sql converts integer arguments to int64 before they reach the driver.
+				if newInventory, isInt := args[0].(int64); isInt && newInventory < 0 {
 					return false
 				}
 			}
