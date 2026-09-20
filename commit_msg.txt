@@ -1,0 +1,4 @@
+test(dashboard): refactor coverage for views.test
+
+Additional updates:
+- refactor(e2e): improve global-setup implementation

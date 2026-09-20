@@ -5,13 +5,11 @@
   "scripts": {
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "lint": "eslint ."
+    "lint": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
-    "@testcontainers/postgresql": "^10.15.0",
     "@types/node": "^20.0.0",
-    "testcontainers": "^10.15.0",
     "typescript": "^5.0.0"
   }
 }
