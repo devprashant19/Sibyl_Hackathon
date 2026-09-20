@@ -1,4 +1,0 @@
-chore(fault-drivers): add configuration for tsconfig
-
-Additional updates:
-- chore(fault-drivers): add configuration for tsconfig
