@@ -1,5 +1,10 @@
 # Sibyl GitHub App Integration
 
+> **Status: not wired.** `SibylGitHubApp` in `@sibyl/core/enterprise` can create check runs and PR comments
+> with a token, but the API does not call it and there is no hosted Sibyl to install. For pull requests
+> today, run `sibyl ci --junit …` in your workflow and publish the JUnit report — see
+> [`docs/cli.md`](docs/cli.md#sibyl-ci).
+
 Sibyl integrates seamlessly with your existing Pull Request workflow via a native GitHub App. This allows Sibyl to run background chaos simulations against your code changes securely in your own CI environment, and report the results directly into your PRs without requiring source code access.
 
 ## Architecture & Security

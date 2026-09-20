@@ -1,4 +1,0 @@
-chore: update .gitignore configuration
-
-Additional updates:
-- chore: update ARCHITECTURE.md configuration
