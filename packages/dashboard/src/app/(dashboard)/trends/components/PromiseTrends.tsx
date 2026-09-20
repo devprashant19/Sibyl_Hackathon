@@ -1,5 +1,7 @@
 import * as React from "react";
 import { Badge, Skeleton, EmptyState } from "@sibyl/ui";
+import Link from "next/link";
+import { toast } from "sonner";
 import { ApiErrorState } from "../../../../components/ApiErrorState";
 import type { PromiseTrend, PromiseTrendPoint } from "../../../../lib/api-types";
 import { formatPercent, shortId } from "../../../../lib/format";
@@ -146,7 +148,10 @@ export function PromiseTrends({ trends, isLoading, error, onRetry }: PromiseTren
               </div>
             ))}
           </div>
-          <button className="w-full mt-6 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-surface-raised text-text-muted hover:text-text transition-colors">
+          <button 
+            onClick={() => toast.info("Full breakdown view coming soon.")}
+            className="w-full mt-6 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-surface-raised text-text-muted hover:text-text transition-colors"
+          >
             View Full Breakdown
           </button>
         </div>
@@ -191,9 +196,9 @@ export function PromiseTrends({ trends, isLoading, error, onRetry }: PromiseTren
                         <div className="text-xs text-text-muted">{trend.totalFailed}/{trend.totalRuns} runs</div>
                       </td>
                       <td className="px-6 py-4">
-                        <button className="px-3 py-1.5 rounded bg-surface border border-border hover:border-text-dim text-xs font-semibold text-text transition-colors">
-                          View Drill
-                        </button>
+                        <Link href="/runs" className="px-3 py-1.5 rounded bg-surface border border-border hover:border-text-dim text-xs font-semibold text-text transition-colors">
+                          View Runs
+                        </Link>
                       </td>
                     </tr>
                   ))

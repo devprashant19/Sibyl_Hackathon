@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 import { ErrorBoundary } from "@sibyl/ui";
 import { api } from "../../../lib/api";
 import type { RunStatusValue } from "../../../lib/api-types";
@@ -58,7 +59,7 @@ export default function RunExplorer() {
                 <button onClick={reloadRuns} className="p-1 rounded hover:bg-surface-raised text-text-muted transition-colors" title="Refresh">
                   <span className="material-symbols-outlined text-[18px]">refresh</span>
                 </button>
-                <button className="p-1 rounded hover:bg-surface-raised text-text-muted transition-colors" title="Filter">
+                <button onClick={() => toast.info("Advanced filtering is coming soon.")} className="p-1 rounded hover:bg-surface-raised text-text-muted transition-colors" title="Filter">
                   <span className="material-symbols-outlined text-[18px]">filter_list</span>
                 </button>
               </div>

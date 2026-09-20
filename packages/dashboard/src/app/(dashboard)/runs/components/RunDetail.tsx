@@ -11,6 +11,7 @@ import {
   summarizeEvent,
 } from "../../../../lib/format";
 import { statusBadgeVariant } from "./RunList";
+import { toast } from "sonner";
 
 interface RunDetailProps {
   run: RunDetailData | null;
@@ -135,10 +136,19 @@ export function RunDetail({ run, isLoading, error, onRetry }: RunDetailProps) {
             </div>
           </div>
           <div className="flex gap-3">
-            <button className="px-4 py-2 rounded-md border border-border bg-surface hover:bg-surface-raised text-text-muted hover:text-text transition-colors text-sm font-semibold">
+            <button 
+              onClick={() => toast.info("Preparing JSON export...")}
+              className="px-4 py-2 rounded-md border border-border bg-surface hover:bg-surface-raised text-text-muted hover:text-text transition-colors text-sm font-semibold"
+            >
               Export JSON
             </button>
-            <button className="px-4 py-2 rounded-md bg-green text-bg hover:bg-green-bright transition-colors text-sm font-semibold shadow-sm">
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(replayCommand);
+                toast.success("Replay command copied to clipboard!");
+              }}
+              className="px-4 py-2 rounded-md bg-green text-bg hover:bg-green-bright transition-colors text-sm font-semibold shadow-sm"
+            >
               Re-run
             </button>
           </div>

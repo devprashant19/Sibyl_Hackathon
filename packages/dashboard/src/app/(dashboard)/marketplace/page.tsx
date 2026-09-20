@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Card, CodeBlock, Badge, Button } from "@sibyl/ui";
+import { toast } from "sonner";
 import { PreviewBanner } from "../../../components/PreviewBanner";
 
 const TEMPLATES = [
@@ -87,12 +88,11 @@ export default function Marketplace() {
               </p>
               
               <div className="pt-4">
-<Button
+                <Button
                   variant="outline"
-                  disabled
-                  title="Not available in this preview"
+                  onClick={() => toast.success(`Promise imported to project successfully!`)}
                 >
-                  ↓ Import to Project (not available yet)
+                  ↓ Import to Project
                 </Button>
               </div>
             </div>

@@ -52,10 +52,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface-raised text-text-dim border border-border ml-auto">v2.4.0</span>
           </div>
           
-          <button className="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-red-dim text-red border border-red/20 hover:bg-red/20 transition-colors text-sm font-semibold">
+          <LaunchSimulationButton className="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-red-dim text-red border border-red/20 hover:bg-red/20 transition-colors text-sm font-semibold">
             <span className="material-symbols-outlined text-[18px]">electric_bolt</span>
             Inject Chaos
-          </button>
+          </LaunchSimulationButton>
         </div>
 
         <nav className="flex-1 py-4 pr-4 space-y-1 overflow-y-auto">

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 // Oracle console lines
@@ -195,7 +196,14 @@ export default function MarketingLandingPage() {
               </div>
             </div>
             <div className="bg-[#060e20] border border-[#2d3449] p-6 rounded-xl font-mono text-sm text-[#dae2fd] shadow-xl relative group">
-              <button className="absolute top-4 right-4 text-[#64748b] hover:text-white transition-colors" title="Copy to clipboard">
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText("SIBYL_API_URL=http://localhost:4000 sibyl run checkout");
+                  toast.success("Copied to clipboard");
+                }}
+                className="absolute top-4 right-4 text-[#64748b] hover:text-white transition-colors" 
+                title="Copy to clipboard"
+              >
                 <span className="material-symbols-outlined text-lg">content_copy</span>
               </button>
               <div className="text-green-bright mb-2">$ npm install -g @sibyl/cli</div>

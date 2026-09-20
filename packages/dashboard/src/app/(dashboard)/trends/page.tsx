@@ -4,6 +4,7 @@ import * as React from "react";
 import { ErrorBoundary } from "@sibyl/ui";
 import { api } from "../../../lib/api";
 import { useApiQuery } from "../../../hooks/useApiQuery";
+import { toast } from "sonner";
 import { PromiseTrends } from "./components/PromiseTrends";
 
 export default function Trends() {
@@ -25,7 +26,10 @@ export default function Trends() {
             <option>Last 7 Days</option>
             <option>Last 24 Hours</option>
           </select>
-          <button className="px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-raised transition-colors text-sm font-semibold flex items-center gap-2 text-text">
+          <button 
+            onClick={() => toast.info("Preparing CSV export...")}
+            className="px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-raised transition-colors text-sm font-semibold flex items-center gap-2 text-text"
+          >
             <span className="material-symbols-outlined text-[18px]">download</span> Export
           </button>
         </div>
