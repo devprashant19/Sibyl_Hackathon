@@ -1,0 +1,2 @@
+primary_redis_url    = "redis://redis.sibyl-system.svc.cluster.local:6379"
+eu_central_redis_url = "rediss://:change-me@redis.example.com:6380"

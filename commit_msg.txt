@@ -1,4 +1,0 @@
-docs: update documentation for
-
-Additional updates:
-- chore(infra): update infrastructure configuration for
