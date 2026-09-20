@@ -10,7 +10,7 @@ import { RunList } from "./components/RunList";
 import { RunDetail } from "./components/RunDetail";
 
 const STATUS_FILTERS: { label: string; value: RunStatusValue | "" }[] = [
-  { label: "All statuses", value: "" },
+  { label: "All Status", value: "" },
   { label: "Failed", value: "FAILED" },
   { label: "Intermittent", value: "INTERMITTENT" },
   { label: "Errored", value: "ERRORED" },
@@ -43,22 +43,34 @@ export default function RunExplorer() {
     <div className="flex flex-col h-full w-full">
       <LiveSessions onSessionCompleted={handleSessionCompleted} />
 
-      <div className="flex flex-1 overflow-hidden p-6 gap-6 relative z-10">
+      <div className="flex flex-1 overflow-hidden">
         {/* Left Panel: Run List */}
-        <div className="w-1/3 border border-glass-border rounded-2xl flex flex-col h-full bg-glass backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden">
-          <div className="p-5 border-b border-glass-border flex items-center justify-between gap-2 bg-white/5">
-            <h2 className="font-display font-semibold text-lg text-gold drop-shadow-sm flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-gold shadow-[0_0_8px_rgba(226,193,89,0.8)] animate-pulse" />
-              Simulation Runs
-            </h2>
-            <label className="flex items-center gap-2 text-xs text-muted font-body">
-              <span className="sr-only">Filter by status</span>
+        <div className="w-80 border-r border-border flex flex-col h-full bg-surface">
+          <div className="p-4 border-b border-border flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-lg text-text flex items-center gap-2">
+                Execution Feed
+                <span className="px-2 py-0.5 rounded-full bg-surface-raised border border-border text-xs font-mono text-text-muted">
+                  {runs.length}
+                </span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <button onClick={reloadRuns} className="p-1 rounded hover:bg-surface-raised text-text-muted transition-colors" title="Refresh">
+                  <span className="material-symbols-outlined text-[18px]">refresh</span>
+                </button>
+                <button className="p-1 rounded hover:bg-surface-raised text-text-muted transition-colors" title="Filter">
+                  <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
               <div className="relative">
                 <select
                   aria-label="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as RunStatusValue | "")}
-                  className="appearance-none bg-ink-2/80 border border-glass-border rounded-lg pl-3 pr-8 py-1.5 text-xs text-parchment font-medium outline-none focus:border-gold hover:border-white/20 transition-colors shadow-inner"
+                  className="w-full appearance-none bg-surface-raised border border-border rounded-md pl-2 pr-6 py-1 text-xs text-text focus:outline-none focus:border-green transition-colors"
                 >
                   {STATUS_FILTERS.map((f) => (
                     <option key={f.value || "all"} value={f.value}>
@@ -66,11 +78,16 @@ export default function RunExplorer() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
+                <span className="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted text-[14px]">arrow_drop_down</span>
               </div>
-            </label>
+              <div className="relative">
+                <select className="w-full appearance-none bg-surface-raised border border-border rounded-md pl-2 pr-6 py-1 text-xs text-text focus:outline-none focus:border-green transition-colors">
+                  <option>Newest First</option>
+                  <option>Oldest First</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted text-[14px]">arrow_drop_down</span>
+              </div>
+            </div>
           </div>
 
           <ErrorBoundary>
@@ -87,14 +104,12 @@ export default function RunExplorer() {
         </div>
 
         {/* Right Panel: Run Detail */}
-        <div className="w-2/3 border border-glass-border rounded-2xl h-full flex flex-col bg-glass backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden">
+        <div className="flex-1 h-full flex flex-col bg-bg overflow-hidden relative">
           <ErrorBoundary>
             {runs.length === 0 && !detailQuery.isLoading ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted">
-                <div className="w-16 h-16 rounded-full border border-glass-border bg-white/5 flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-muted/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-text-muted">
+                <div className="w-16 h-16 rounded-2xl border border-border bg-surface flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-[32px] text-text-dim">terminal</span>
                 </div>
                 <p className="text-sm font-medium">{runsQuery.isLoading ? "Simulating futures…" : "Select a run to view execution trace."}</p>
               </div>
