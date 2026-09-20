@@ -1,0 +1,4 @@
+chore(infra): update infrastructure configuration for variables
+
+Additional updates:
+- chore(infra): update infrastructure configuration for tsconfig

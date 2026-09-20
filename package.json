@@ -7,7 +7,14 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:drivers": "vitest run --root packages/fault-drivers",
     "test:integration": "turbo run test:integration",
+    "typecheck": "tsc --build",
+    "smoke": "node scripts/smoke.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "sibyl": "node packages/cli/bin/sibyl.js",
+    "api": "pnpm --filter @sibyl/api start",
+    "dashboard": "pnpm --filter @sibyl/dashboard dev",
     "clean": "turbo run clean"
   },
   "devDependencies": {

@@ -76,8 +76,12 @@ function printSummary(session: Session, file: string) {
   const notPassing = session.runs.filter(r => !r.passed);
   if (notPassing.length === 0) return;
 
-  // Show the smallest failing schedules first: they are the easiest to reason about.
-  const shown = [...notPassing].sort((a, b) => a.concreteSchedules.length - b.concreteSchedules.length).slice(0, 5);
+  // Deterministic failures first (an intermittent run may not reproduce on replay), then the
+  // smallest schedules, which are the easiest to reason about.
+  const rank: Record<string, number> = { FAILED: 0, ERRORED: 1, INTERMITTENT: 2 };
+  const shown = [...notPassing]
+    .sort((a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3) || a.concreteSchedules.length - b.concreteSchedules.length)
+    .slice(0, 5);
   console.log(`\n${chalk.bold('Runs that did not pass')}${notPassing.length > shown.length ? chalk.gray(` (showing ${shown.length} of ${notPassing.length})`) : ''}`);
   for (const run of shown) {
     console.log(`  ${statusColor(run.status)} ${chalk.white(run.runId.slice(0, 8))}  ${chalk.gray(describeSchedule(run))}`);
