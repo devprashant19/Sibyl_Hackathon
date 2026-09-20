@@ -1,3 +1,10 @@
+// The engine: everything needed to run a search in-process. Deliberately free of heavy or
+// networked dependencies — importing this used to load SAML Jackson, Stripe, Octokit and BullMQ
+// (and open a Redis connection), which took over a minute before the first line of user code ran.
+//
+// Server-side modules live behind subpath entries:
+//   @sibyl/core/enterprise  billing, SSO, SCIM, audit log, compliance, retention, GitHub App
+//   @sibyl/core/queue       BullMQ queues, Redis connection, Docker sandbox
 export * from './prng';
 export * from './clock';
 export * from './driver';
@@ -6,24 +13,13 @@ export * from './promise';
 export * from './async-context';
 export * from './orchestrator';
 export * from './calendar';
-export * from './github-app';
-export * from './billing';
-export * from './auth/rbac';
-export * from './auth/sso';
-export * from './auth/scim';
-export * from './audit/logger';
-export * from './audit/compliance';
-export * from './db/retention';
 export * from './telemetry';
 export * from './search/strategy';
 export * from './search/ucb1';
 export * from './search/mcts';
 export * from './search/bayesian';
 export * from './importers/otlp';
-export * from './api/server';
 export * from './api/webhook-worker';
 export * from './sandbox/provider';
-export * from './sandbox/docker';
-export * from './queue/job';
-export * from './queue/setup';
-export * from './billing/limits';
+export * from './auth/rbac';
+export * from './config';

@@ -1,4 +1,4 @@
-import { FaultScheduleTemplate, FaultDomain } from '@sibyl-shared';
+import { FaultScheduleTemplate, FaultDomain } from '@sibyl/shared';
 import * as crypto from 'crypto';
 
 export interface OtlpTrace {
@@ -31,7 +31,7 @@ export interface OtlpImporterConfig {
   latencyFuzzFactor?: number;
   
   /**
-   * If true, generates error faults (e.g. 500_ERROR, DEADLOCK) if the span has status.code === 2 (ERROR).
+   * If true, generates error faults (e.g. HTTP_5XX, CONNECTION_DROP) if the span has status.code === 2 (ERROR).
    */
   reproduceErrors?: boolean;
 }
@@ -86,7 +86,10 @@ export class OtlpImporter {
       target.topic = attrs.get('messaging.destination') || span.name;
     } else if (attrs.has('rpc.system')) {
       domain = 'GRPC';
-      target.service = attrs.get('rpc.service') || span.name;
+      // The gRPC driver matches on `method` (the full /package.Service/Method path).
+      const service = attrs.get('rpc.service');
+      const method = attrs.get('rpc.method');
+      target.method = service && method ? `/${service}/${method}` : span.name;
     }
 
     if (!domain) return null; // We only create templates for known dependency domains
@@ -95,8 +98,10 @@ export class OtlpImporter {
     // If reproduceErrors is true and span has an error status, we inject a failure
     if (this.config.reproduceErrors && span.status && span.status.code === 2) {
       switch (domain) {
-        case 'HTTP': faultType = '500_ERROR'; break; // Generic HTTP error
-        case 'DATABASE': faultType = 'DISCONNECT'; break;
+        // Must be real fault types from @sibyl/shared: '500_ERROR' and 'DISCONNECT' were not, so
+        // every template generated from an errored span failed schedule validation.
+        case 'HTTP': faultType = 'HTTP_5XX'; break;
+        case 'DATABASE': faultType = 'CONNECTION_DROP'; break;
         case 'MESSAGE_QUEUE': faultType = 'MESSAGE_LOSS'; break;
         case 'GRPC': faultType = 'UNAVAILABLE'; break;
       }
@@ -111,9 +116,15 @@ export class OtlpImporter {
     }
 
     // 3. Derive Delay Bounds
-    const startNano = BigInt(span.startTimeUnixNano);
-    const endNano = BigInt(span.endTimeUnixNano);
-    const durationMs = Number((endNano - startNano) / BigInt(1_000_000));
+    let durationMs = 0;
+    try {
+      // BigInt(undefined) throws; spans exported without timestamps still yield a template.
+      if (span.startTimeUnixNano && span.endTimeUnixNano) {
+        durationMs = Number((BigInt(span.endTimeUnixNano) - BigInt(span.startTimeUnixNano)) / BigInt(1_000_000));
+      }
+    } catch {
+      durationMs = 0;
+    }
     
     // Fallback to 1ms if 0
     const baseMs = Math.max(durationMs, 1);
