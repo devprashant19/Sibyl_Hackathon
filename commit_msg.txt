@@ -1,4 +1,0 @@
-feat(dashboard): refactor UI component RunList
-
-Additional updates:
-- refactor(dashboard): improve page implementation
