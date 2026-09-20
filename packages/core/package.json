@@ -15,7 +15,8 @@
     "@sibyl-shared": "workspace:*",
     "bullmq": "^6.3.2",
     "ioredis": "^6.0.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "stripe": "^22.6.0"
   },
   "devDependencies": {
     "@sibyl-fault-drivers/mq": "workspace:*",
