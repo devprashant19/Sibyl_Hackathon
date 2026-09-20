@@ -1,4 +1,0 @@
-docs: update documentation for cli
-
-Additional updates:
-- docs: update documentation for configuration

@@ -1,0 +1,20 @@
+# Prometheus config for docker-compose.observability.yml.
+#
+# Sibyl's API, worker and CLI do not expose a Prometheus /metrics endpoint today, and no
+# OpenTelemetry SDK/exporter is registered (packages/core/src/telemetry uses the no-op API
+# providers unless the host process registers one). So only targets that actually exist are
+# scraped here. Add a job for Sibyl once a metrics endpoint exists.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Jaeger all-in-one (v1) serves its own metrics on the admin port.
+  - job_name: jaeger
+    static_configs:
+      - targets: ["jaeger:14269"]
