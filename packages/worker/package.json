@@ -9,8 +9,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sibyl-core": "workspace:*",
     "bullmq": "^6.3.2",
-    "ioredis": "^6.0.0",
-    "@sibyl-core": "workspace:*"
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "ioredis-mock": "^8.13.1"
   }
 }

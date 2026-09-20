@@ -16,6 +16,11 @@ export const simulationRunQueue = new Queue<SimulationRunJob>('simulation-run-qu
   connection 
 });
 
+// The Dead Letter Queue handles jobs that have failed all retries
+export const deadLetterQueue = new Queue<SimulationRunJob>('simulation-dlq', {
+  connection
+});
+
 /**
  * Dispatches a simulation run into the simulation-run queue.
  * Utilizes BullMQ's native groups to implement fair-share scheduling across orgs.
@@ -27,8 +32,11 @@ export async function dispatchSimulationRun(job: SimulationRunJob) {
     `sim-${job.runId}`,
     job,
     {
-      // Requires BullMQ Pro or v5 with group support for fair round-robin
-      // Alternatively, we use generic job options
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 1000
+      },
       removeOnComplete: true,
       removeOnFail: false
     }

@@ -1,4 +1,0 @@
-feat: add cross-run and snapshot promises
-
-Additional updates:
-- feat: CLI error handling and doctor

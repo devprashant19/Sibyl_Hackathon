@@ -1,5 +1,5 @@
-import { Worker, Job } from 'bullmq';
-import { connection, SimulationRunJob, DockerSandboxProvider } from '@sibyl-core';
+import { Worker, Job, Queue } from 'bullmq';
+import { connection, SimulationRunJob, DockerSandboxProvider, deadLetterQueue } from '@sibyl-core';
 import IORedis from 'ioredis';
 
 console.log('[Worker] Starting Sibyl Simulation Worker Daemon...');
@@ -14,6 +14,21 @@ const worker = new Worker<SimulationRunJob>(
   async (job: Job<SimulationRunJob>) => {
     const { runId, orgId, schedules, seed } = job.data;
     console.log(`[Worker] Processing Run ${runId} for Org ${orgId}`);
+
+    // Check Idempotency: use SETNX on Redis to ensure we don't process the same run twice
+    const idempotencyKey = `sibyl:run:${runId}:status`;
+    const setnxResult = await connection.setnx(idempotencyKey, 'PROCESSING');
+    if (setnxResult === 0) {
+      // Key already exists, check if it's COMPLETED
+      const currentStatus = await connection.get(idempotencyKey);
+      if (currentStatus === 'COMPLETED') {
+        console.log(`[Worker] Run ${runId} is already completed. Skipping.`);
+        await job.updateProgress(100);
+        return;
+      }
+      // If it's PROCESSING, another worker crashed mid-run and this is a retry. 
+      // We can proceed but we must assume the last run didn't finish.
+    }
 
     // Create a Sandbox for isolation
     const sandbox = await sandboxProvider.createSandbox({
@@ -32,10 +47,13 @@ const worker = new Worker<SimulationRunJob>(
       // ... await sandbox execution completion ...
       // ... write results to Postgres database ...
 
+      await connection.set(idempotencyKey, 'COMPLETED');
       await job.updateProgress(100);
       console.log(`[Worker] Run ${runId} completed successfully.`);
     } catch (err) {
       console.error(`[Worker] Run ${runId} failed:`, err);
+      // Remove PROCESSING status on failure so it can be retried safely
+      await connection.del(idempotencyKey);
       throw err;
     } finally {
       await sandbox.stop();
@@ -69,6 +87,19 @@ worker.on('error', (err) => {
   console.error('[Worker] Unexpected Error:', err);
 });
 
+worker.on('failed', async (job: Job | undefined, err: Error) => {
+  if (job) {
+    console.error(`[Worker] Job ${job.id} failed with error: ${err.message}. Attempts made: ${job.attemptsMade}`);
+    // BullMQ attempts are 1-indexed. If attemptsMade >= opts.attempts, it permanently failed.
+    if (job.opts.attempts && job.attemptsMade >= job.opts.attempts) {
+      console.log(`[Worker] Job ${job.id} exhausted retries. Moving to DLQ.`);
+      await deadLetterQueue.add(`dlq-${job.id}`, job.data, {
+        jobId: `dlq-${job.id}` // Prevent duplicates in DLQ
+      });
+    }
+  }
+});
+
 // A Redis publisher for Webhook/WebSocket progress events
 const pub = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -81,3 +112,15 @@ worker.on('completed', async (job) => {
     status: 'COMPLETED'
   }));
 });
+
+// --- Graceful Shutdown ---
+async function shutdown(signal: string) {
+  console.log(`\n[Worker] Received ${signal}. Starting graceful shutdown...`);
+  // Stop accepting new jobs and wait for active jobs to finish
+  await worker.close();
+  console.log('[Worker] Graceful shutdown complete. Exiting process.');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

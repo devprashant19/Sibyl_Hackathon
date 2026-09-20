@@ -7,7 +7,7 @@ import { execSync } from 'child_process';
 import { handleError, ConfigLoadError, ApiKeyError, NetworkError, SDKMismatchError } from './errors';
 // Need dynamic import for the user's config
 // import { SearchOrchestrator } from '@sibyl-core'; // Stub
-import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer } from '@sibyl-agent';
+import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer, BudgetExceededError, ClaudeUnavailableError } from '@sibyl-agent';
 
 const program = new Command();
 
@@ -214,18 +214,26 @@ program
           const mockEvents = [{ type: 'HTTP_REQUEST', target: 'api.stripe.com', status: 'TIMEOUT' }];
           const mockEvidence = { promiseName: 'no_500s', state: 'FAILED' };
           
-          let explanation;
+          let explanation = null;
           try {
             explanation = await explainer.explainFailure('mock-run-id', mockEvents, mockEvidence);
           } catch(e: any) {
-             throw new ApiKeyError(\`Agent explanation failed: \${e.message}\`);
+            if (e instanceof BudgetExceededError || e instanceof ClaudeUnavailableError || e.name === 'BudgetExceededError' || e.name === 'ClaudeUnavailableError') {
+              console.log(chalk.yellow(`\n⚠️  AI explanation unavailable: ${e.message}`));
+              console.log(chalk.gray('Displaying raw captured evidence instead:'));
+              console.log(chalk.white(JSON.stringify({ mockEvents, mockEvidence }, null, 2)));
+            } else {
+              throw new ApiKeyError(`Agent explanation failed: ${e.message}`);
+            }
           }
           
-          console.log(chalk.gray('--- AI Root Cause Analysis ---'));
-          console.log(chalk.white(explanation));
-          console.log(chalk.gray('------------------------------'));
+          if (explanation) {
+            console.log(chalk.gray('--- AI Root Cause Analysis ---'));
+            console.log(chalk.white(explanation));
+            console.log(chalk.gray('------------------------------'));
+          }
 
-          if (options.suggestFix && options.suggestFix.length > 0) {
+          if (options.suggestFix && options.suggestFix.length > 0 && explanation) {
             console.log(chalk.magenta('\n🛠️  Generating suggested patch...'));
             const patcher = new SibylPatcher({ apiKey });
             
@@ -240,24 +248,32 @@ program
             }
 
             if (Object.keys(fileContents).length > 0) {
-              const patchResult = await patcher.suggestFix(explanation, fileContents);
-              
-              const handoffDoc = \`# Sibyl AI Handoff
+              try {
+                const patchResult = await patcher.suggestFix(explanation, fileContents);
+                
+                const handoffDoc = `# Sibyl AI Handoff
 > Note: Pass this document to your IDE agent (Cursor, Claude Code, Copilot) to automatically apply the fix.
 
 ## Prompt for Agent
 Please apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.
-**Explanation of fix:** \${patchResult.explanation}
+**Explanation of fix:** ${patchResult.explanation}
 
 ## Patch
-\\\`\\\`\\\`diff
-\${patchResult.unifiedDiff}
-\\\`\\\`\\\`
-\`;
-              const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
-              fs.writeFileSync(handoffPath, handoffDoc);
-              console.log(chalk.green(\`✔ Handoff document generated: \${handoffPath}\`));
-              console.log(chalk.cyan(\`You can pass this file to Cursor/Claude Code to auto-apply the fix.\`));
+\`\`\`diff
+${patchResult.unifiedDiff}
+\`\`\`
+`;
+                const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
+                fs.writeFileSync(handoffPath, handoffDoc);
+                console.log(chalk.green(`✔ Handoff document generated: ${handoffPath}`));
+                console.log(chalk.cyan(`You can pass this file to Cursor/Claude Code to auto-apply the fix.`));
+              } catch (e: any) {
+                if (e instanceof BudgetExceededError || e instanceof ClaudeUnavailableError || e.name === 'BudgetExceededError' || e.name === 'ClaudeUnavailableError') {
+                  console.log(chalk.yellow(`\n⚠️  Patch generation unavailable: ${e.message}`));
+                } else {
+                  throw e;
+                }
+              }
             }
           }
         } else {
@@ -296,7 +312,7 @@ program
       
       const configPath = path.resolve(options.target);
       if (!fs.existsSync(configPath)) {
-        throw new ConfigLoadError(\`Configuration file not found at \${options.target}\`, options.target);
+        throw new ConfigLoadError(`Configuration file not found at ${options.target}`, options.target);
       }
     for (let i = 1; i <= parseInt(options.iterations); i++) {
       // Mock fast execution
@@ -316,7 +332,7 @@ program
           try {
             explanation = await explainer.explainFailure('mock-run-id', [{ type: 'HTTP_REQUEST' }], { promise: 'no_500s' });
           } catch(e: any) {
-             throw new ApiKeyError(\`Agent explanation failed: \${e.message}\`);
+             throw new ApiKeyError(`Agent explanation failed: ${e.message}`);
           }
           
           console.log('--- AI Root Cause Analysis ---');
@@ -333,7 +349,7 @@ program
 
             if (Object.keys(fileContents).length > 0) {
               const patchResult = await patcher.suggestFix(explanation, fileContents);
-              const handoffDoc = \`# Sibyl AI Handoff\n\n## Prompt for Agent\nPlease apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.\n**Explanation:** \${patchResult.explanation}\n\n## Patch\n\\\`\\\`\\\`diff\n\${patchResult.unifiedDiff}\n\\\`\\\`\\\`\n\`;
+              const handoffDoc = `# Sibyl AI Handoff\n\n## Prompt for Agent\nPlease apply the following unified diff to fix a bug discovered by Sibyl Chaos Engineering.\n**Explanation:** ${patchResult.explanation}\n\n## Patch\n\`\`\`diff\n${patchResult.unifiedDiff}\n\`\`\`\n`;
               const handoffPath = path.join(process.cwd(), 'sibyl-fix-handoff.md');
               fs.writeFileSync(handoffPath, handoffDoc);
               console.log(`[SUCCESS] Handoff document generated: ${handoffPath}`);
@@ -429,7 +445,11 @@ program
       try {
         result = await agent.investigate(bugDescription, options.project);
       } catch (err: any) {
-        throw new NetworkError(\`Agent request failed: \${err.message}\`);
+        if (err instanceof BudgetExceededError || err instanceof ClaudeUnavailableError || err.name === 'BudgetExceededError' || err.name === 'ClaudeUnavailableError') {
+          console.log(chalk.yellow(`\n⚠️  Investigation unavailable: ${err.message}`));
+          return;
+        }
+        throw new NetworkError(`Agent request failed: ${err.message}`);
       }
 
       if (result.status === 'NEEDS_CLARIFICATION') {
@@ -472,7 +492,7 @@ program
       console.log(chalk.blue.bold(`\n📝 Sibyl Postmortem Analyzer Started`));
       
       if (!fs.existsSync(postmortemFile)) {
-        throw new ConfigLoadError(\`Could not find postmortem file: \${postmortemFile}\`, postmortemFile);
+        throw new ConfigLoadError(`Could not find postmortem file: ${postmortemFile}`, postmortemFile);
       }
       
       const postmortemText = fs.readFileSync(postmortemFile, 'utf-8');
@@ -490,7 +510,11 @@ program
         console.log(chalk.magenta('🤖 Drafting regression tests...'));
         result = await analyzer.analyze(postmortemText);
       } catch (err: any) {
-        throw new NetworkError(\`Agent request failed: \${err.message}\`);
+        if (err instanceof BudgetExceededError || err instanceof ClaudeUnavailableError || err.name === 'BudgetExceededError' || err.name === 'ClaudeUnavailableError') {
+          console.log(chalk.yellow(`\n⚠️  Analysis unavailable: ${err.message}`));
+          return;
+        }
+        throw new NetworkError(`Agent request failed: ${err.message}`);
       }
 
       console.log(chalk.green.bold('\n✔ Analysis Complete'));
