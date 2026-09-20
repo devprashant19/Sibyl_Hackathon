@@ -1,17 +1,27 @@
 {
-  "name": "@sibyl-api",
+  "name": "@sibyl/api",
   "version": "0.0.0",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --build",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts"
   },
   "dependencies": {
-    "@sibyl-shared": "workspace:*"
+    "@sibyl/core": "workspace:*",
+    "@sibyl/shared": "workspace:*",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.13",
     "vitest": "^2.1.8"
   }
 }
