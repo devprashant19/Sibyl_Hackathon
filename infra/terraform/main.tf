@@ -7,6 +7,24 @@ terraform {
   }
 }
 
+# This configuration does not deploy Redis. Point the worker pools at an existing Redis that the
+# control plane's queue producers use (BullMQ queue "simulation-run-queue").
+variable "primary_redis_url" {
+  type        = string
+  description = "Redis URL reachable from the primary cluster, e.g. redis://redis.sibyl-system.svc.cluster.local:6379"
+}
+
+variable "eu_central_redis_url" {
+  type        = string
+  description = "The same Redis, as reachable from the eu-central cluster (VPC peering or TLS endpoint), e.g. rediss://:password@redis.example.com:6380"
+}
+
+variable "worker_image" {
+  type        = string
+  description = "Worker image (docker build -f docker/Dockerfile --target worker .)"
+  default     = "sibyl/worker:latest"
+}
+
 # ---------------------------------------------------------
 # Primary Region (Control Plane)
 # ---------------------------------------------------------
@@ -33,8 +51,8 @@ module "worker_us_east" {
 
   region_name = "us-east-1"
   namespace   = "sibyl-workers-us-east-1"
-  # In reality, this URL comes from the control_plane module outputs
-  redis_url   = "redis://redis.sibyl-system.svc.cluster.local:6379" 
+  redis_url   = var.primary_redis_url
+  image       = var.worker_image
 }
 
 # ---------------------------------------------------------
@@ -53,7 +71,6 @@ module "worker_eu_central" {
 
   region_name = "eu-central-1"
   namespace   = "sibyl-workers-eu-central-1"
-  
-  # Connects back to the Primary Region's Redis over public internet (or VPC peering)
-  redis_url   = "redis://control-plane-redis.primary-region.sibyl.com:6379" 
+  redis_url   = var.eu_central_redis_url
+  image       = var.worker_image
 }
