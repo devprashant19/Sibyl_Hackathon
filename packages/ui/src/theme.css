@@ -1,0 +1,25 @@
+@theme {
+  --color-ink: #0a0d1a;
+  --color-ink-2: #12162c;
+  --color-ink-3: #191f3d;
+  --color-parchment: #ece4d3;
+  --color-muted: #9aa0c0;
+  --color-gold: #caa53a;
+  --color-ember: #d6564c;
+  --color-violet: #5b4e8f;
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-body: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-ink-3);
+  }
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-parchment);
+    font-family: var(--font-body);
+  }
+}
