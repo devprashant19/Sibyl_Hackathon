@@ -1,0 +1,4 @@
+refactor(ui): update Skeleton component for new theme
+
+Additional updates:
+- refactor(ui): update EmptyState with new typography

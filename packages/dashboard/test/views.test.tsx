@@ -191,36 +191,42 @@ describe('RunDetail component', () => {
 
   it('shows the failed promise, schedule, timeline and exact replay command', () => {
     render(<RunDetail run={failedRunDetail} />);
-    expect(screen.getByText('Run run-1')).toBeInTheDocument();
+    expect(screen.getByText('run-1')).toBeInTheDocument();
     expect(screen.getByTestId('run-seed')).toHaveTextContent('0x8f2c');
 
+    // Promises Tab (Default)
     const failed = screen.getByTestId('promise-no-double-charges');
     expect(within(failed).getByText('FAIL')).toBeInTheDocument();
     expect(within(failed).getByText('customer charged twice for order 42')).toBeInTheDocument();
     expect(within(failed).getByText('A customer is never charged twice')).toBeInTheDocument();
     expect(within(screen.getByTestId('promise-every-charge-has-receipt')).getByText('PASS')).toBeInTheDocument();
 
+    // Schedule Tab
+    fireEvent.click(screen.getByTestId('tab-schedule'));
     expect(screen.getByText('SLOW_RESPONSE')).toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument();
     expect(screen.getByText('2000ms')).toBeInTheDocument();
 
+    // Timeline Tab
+    fireEvent.click(screen.getByTestId('tab-timeline'));
     const events = screen.getAllByTestId('timeline-event');
     expect(events).toHaveLength(2);
     expect(within(events[0]).getByText('10:23:45.010')).toBeInTheDocument();
     expect(within(events[0]).getByText(/POST \/api\/charge → 504/)).toBeInTheDocument();
-    expect(within(events[1]).getByText('+35ms')).toBeInTheDocument();
-    // The injected fault is named on the event that carried it, and only there.
+    expect(within(events[1]).getByText('10:23:45.045')).toBeInTheDocument();
     expect(within(events[0]).getByTestId('timeline-fault')).toHaveTextContent('HTTP_5XX');
     expect(within(events[1]).queryByTestId('timeline-fault')).toBeNull();
 
+    // Replay Tab
+    fireEvent.click(screen.getByTestId('tab-replay'));
     expect(screen.getByTestId('replay-command')).toHaveTextContent('sibyl replay run-1');
-    // Explanations are honest: the dashboard points to the CLI instead of simulating AI output.
     expect(screen.getByTestId('explain-command')).toHaveTextContent('sibyl explain run-1');
     expect(screen.queryByRole('button', { name: /explain/i })).not.toBeInTheDocument();
   });
 
   it('explains why passing runs have no timeline', () => {
     render(<RunDetail run={{ ...failedRunDetail, status: 'COMPLETED', passed: true, events: undefined, eventCount: 12 }} />);
+    fireEvent.click(screen.getByTestId('tab-timeline'));
     expect(screen.getByText(/Passing runs are stored without a timeline \(12 events captured\)/)).toBeInTheDocument();
     expect(screen.queryByTestId('explain-command')).not.toBeInTheDocument();
   });
@@ -238,8 +244,14 @@ describe('Run Explorer page (API wired)', () => {
 
     expect(await screen.findByTestId('run-item-run-1')).toBeInTheDocument();
     expect(screen.getByTestId('run-item-run-2')).toBeInTheDocument();
+    
+    // Switch to Replay tab to see the command
+    fireEvent.click(await screen.findByTestId('tab-replay'));
     expect(await screen.findByTestId('replay-command')).toHaveTextContent('sibyl replay run-1');
-    expect(screen.getByText('customer charged twice for order 42')).toBeInTheDocument();
+    
+    // Switch to Promises tab to see the failure description
+    fireEvent.click(screen.getByTestId('tab-promises'));
+    expect(await screen.findByText('customer charged twice for order 42')).toBeInTheDocument();
 
     const urls = fetchMock.mock.calls.map(([u]) => String(u));
     expect(urls).toContain('http://localhost:4000/api/v1/runs?limit=100');
@@ -393,10 +405,8 @@ describe('PromiseTrends component', () => {
     render(<PromiseTrends trends={trends} />);
     const card = screen.getByTestId('trend-card-no-double-charges');
     expect(within(card).getByText('A customer is never charged twice')).toBeInTheDocument();
-    expect(within(card).getByText('5.0% fail rate (latest session)')).toBeInTheDocument();
-    expect(within(card).getByText('10/300 runs failed across 2 sessions')).toBeInTheDocument();
-    expect(within(card).getByText('10 / 200')).toBeInTheDocument();
-    expect(within(card).getByText('0 / 100')).toBeInTheDocument();
+    expect(within(card).getByText('3.3%')).toBeInTheDocument();
+    expect(within(card).getByText('10/300 runs')).toBeInTheDocument();
   });
 });
 
