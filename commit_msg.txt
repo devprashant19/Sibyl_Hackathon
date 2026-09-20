@@ -1,4 +1,0 @@
-feat(dashboard): redesign RunDetail with tabbed UI
-
-Additional updates:
-- refactor(dashboard): integrate updated RunList and RunDetail on runs page
