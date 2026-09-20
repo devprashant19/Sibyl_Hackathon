@@ -1,1 +1,0 @@
-chore: remove boilerplate pricing section from landing page
