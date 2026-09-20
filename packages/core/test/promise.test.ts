@@ -7,7 +7,7 @@ import {
   executePromise,
   snapshotPromise
 } from '../src/promise';
-import { CapturedEvent } from '@sibyl-shared';
+import { CapturedEvent } from '@sibyl/shared';
 
 describe('Promise Framework', () => {
   const mockEvents: CapturedEvent[] = [
