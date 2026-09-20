@@ -1,0 +1,4 @@
+feat(ui): refactor UI component ProgressTrack
+
+Additional updates:
+- feat(ui): refactor UI component Skeleton
