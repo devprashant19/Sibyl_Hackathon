@@ -1,0 +1,67 @@
+name: Sibyl CI
+description: >
+  Runs `sibyl ci` (deterministic fault-injection search) and writes a JUnit report.
+  Fails the step when any run fails or errors (and, unless allow-intermittent is set, when any run
+  is intermittent), or when the config cannot be loaded.
+
+  Prerequisite: the Sibyl CLI is not published to npm. The workflow must check out and install a
+  project whose dependencies include @sibyl/cli and @sibyl/core (for example this monorepo, or a
+  project that depends on them via a git/workspace reference) before using this action. The config
+  imports @sibyl/core, so it must resolve from the config's directory.
+
+inputs:
+  config:
+    description: Path to sibyl.config.ts, relative to working-directory
+    default: sibyl.config.ts
+  iterations:
+    description: Number of runs (-n). Empty uses the config's value
+    default: ''
+  seed:
+    description: Master seed (--seed). Empty picks a random seed; the session records it
+    default: ''
+  strategy:
+    description: Search strategy (ucb1, mcts or bayesian). Empty uses the default
+    default: ''
+  junit:
+    description: Where to write the JUnit XML report, relative to working-directory
+    default: reports/sibyl-junit.xml
+  require-upload:
+    description: Fail when SIBYL_API_URL is set but the upload fails
+    default: 'false'
+  allow-intermittent:
+    description: Do not fail for intermittent (flaky) runs
+    default: 'false'
+  working-directory:
+    description: Directory to run in
+    default: .
+  cli:
+    description: Command that runs the CLI. The default only uses a locally installed sibyl and never downloads from npm
+    default: npx --no sibyl
+
+runs:
+  using: composite
+  steps:
+    - name: sibyl ci
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # Inputs go through env, never into the script text, so they cannot inject shell.
+      # SIBYL_API_URL / SIBYL_API_TOKEN are read from the job environment (set them from secrets).
+      env:
+        SIBYL_CONFIG: ${{ inputs.config }}
+        SIBYL_ITERATIONS: ${{ inputs.iterations }}
+        SIBYL_SEED: ${{ inputs.seed }}
+        SIBYL_STRATEGY: ${{ inputs.strategy }}
+        SIBYL_JUNIT: ${{ inputs.junit }}
+        SIBYL_REQUIRE_UPLOAD: ${{ inputs.require-upload }}
+        SIBYL_ALLOW_INTERMITTENT: ${{ inputs.allow-intermittent }}
+        SIBYL_CLI: ${{ inputs.cli }}
+      run: |
+        set -euo pipefail
+        args=(ci -c "$SIBYL_CONFIG" --junit "$SIBYL_JUNIT")
+        if [ -n "$SIBYL_ITERATIONS" ]; then args+=(-n "$SIBYL_ITERATIONS"); fi
+        if [ -n "$SIBYL_SEED" ]; then args+=(--seed "$SIBYL_SEED"); fi
+        if [ -n "$SIBYL_STRATEGY" ]; then args+=(--strategy "$SIBYL_STRATEGY"); fi
+        if [ "$SIBYL_REQUIRE_UPLOAD" = "true" ]; then args+=(--require-upload); fi
+        if [ "$SIBYL_ALLOW_INTERMITTENT" = "true" ]; then args+=(--allow-intermittent); fi
+        read -r -a cli <<< "$SIBYL_CLI"
+        "${cli[@]}" "${args[@]}"

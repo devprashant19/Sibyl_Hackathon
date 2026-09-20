@@ -1,4 +1,0 @@
-feat(cli): introduce  module
-
-Additional updates:
-- feat(cli): introduce main module
