@@ -49,21 +49,21 @@ export default function Marketplace() {
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <header className="flex justify-between items-end mb-12">
         <div>
-          <h1 className="font-display text-4xl text-gold mb-2">Promise Marketplace</h1>
-          <p className="text-muted font-body">Pre-built reliability invariants engineered by experts. Import and adapt them instantly.</p>
+          <h1 className="font-display text-4xl text-text mb-2">Promise Marketplace</h1>
+          <p className="text-text-muted font-body">Pre-built reliability invariants engineered by experts. Import and adapt them instantly.</p>
         </div>
         
         {/* Language Toggle */}
-        <div className="flex bg-ink-3 rounded-md p-1">
+        <div className="flex bg-surface-raised rounded-md p-1 border border-border">
           <button 
             onClick={() => setLang("typescript")}
-            className={`px-4 py-1.5 text-sm font-mono rounded-sm transition-colors ${lang === "typescript" ? "bg-ink text-gold" : "text-muted hover:text-parchment"}`}
+            className={`px-4 py-1.5 text-sm font-mono rounded-sm transition-colors ${lang === "typescript" ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text"}`}
           >
             TypeScript
           </button>
           <button 
             onClick={() => setLang("python")}
-            className={`px-4 py-1.5 text-sm font-mono rounded-sm transition-colors ${lang === "python" ? "bg-ink text-gold" : "text-muted hover:text-parchment"}`}
+            className={`px-4 py-1.5 text-sm font-mono rounded-sm transition-colors ${lang === "python" ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text"}`}
           >
             Python
           </button>
@@ -75,14 +75,14 @@ export default function Marketplace() {
           <Card key={template.id} className="p-6 flex flex-col lg:flex-row gap-8">
             <div className="flex-1 space-y-4">
               <div className="flex items-center space-x-3">
-                <h2 className="font-display text-2xl text-parchment">{template.title}</h2>
+                <h2 className="font-display text-2xl text-text">{template.title}</h2>
               </div>
               <div className="flex space-x-2">
                 {template.tags.map(t => (
-                  <Badge key={t} variant="outline" className="text-[10px] uppercase text-muted/80">{t}</Badge>
+                  <Badge key={t} variant="outline" className="text-[10px] uppercase text-text-muted">{t}</Badge>
                 ))}
               </div>
-              <p className="text-muted text-sm leading-relaxed">
+              <p className="text-text-muted text-sm leading-relaxed">
                 {template.description}
               </p>
               
@@ -101,7 +101,7 @@ export default function Marketplace() {
               <CodeBlock 
                 code={template.code[lang]} 
                 language={lang}
-                className="h-full bg-ink-3/30 border-ink-3 m-0"
+                className="h-full m-0"
               />
             </div>
           </Card>
