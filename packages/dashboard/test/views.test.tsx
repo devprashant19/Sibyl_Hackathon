@@ -65,7 +65,7 @@ const failedRunDetail: RunDetailData = {
     },
   ],
   events: [
-    { domain: 'HTTP', id: 'e1', timestamp: T0, payload: { method: 'POST', url: '/api/charge', statusCode: 504, durationMs: 2001 } },
+    { domain: 'HTTP', id: 'e1', fault: 'HTTP_5XX', timestamp: T0, payload: { method: 'POST', url: '/api/charge', statusCode: 504, durationMs: 2001 } },
     { domain: 'DATABASE', id: 'e2', timestamp: T0 + 35, payload: { query: 'INSERT INTO charges', durationMs: 4 } },
   ],
   promises: [
@@ -209,6 +209,9 @@ describe('RunDetail component', () => {
     expect(within(events[0]).getByText('10:23:45.010')).toBeInTheDocument();
     expect(within(events[0]).getByText(/POST \/api\/charge → 504/)).toBeInTheDocument();
     expect(within(events[1]).getByText('+35ms')).toBeInTheDocument();
+    // The injected fault is named on the event that carried it, and only there.
+    expect(within(events[0]).getByTestId('timeline-fault')).toHaveTextContent('HTTP_5XX');
+    expect(within(events[1]).queryByTestId('timeline-fault')).toBeNull();
 
     expect(screen.getByTestId('replay-command')).toHaveTextContent('sibyl replay run-1');
     // Explanations are honest: the dashboard points to the CLI instead of simulating AI output.
