@@ -1,4 +1,4 @@
-import { FaultSchedule, SimulationRun } from '@sibyl-shared';
+import { FaultSchedule, SimulationRun } from '@sibyl/shared';
 
 export interface SearchSessionJob {
   orgId: string;
