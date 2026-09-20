@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run -c ../vitest.integration.config.ts"
   },
   "dependencies": {
     "@sibyl-core": "workspace:*",
@@ -13,6 +14,7 @@
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
+    "@testcontainers/mysql": "^12.1.0",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.0",

@@ -29,6 +29,7 @@ export class SimulationEngine {
 
     const context: DriverContext = {
       clock: this.clock,
+      prng: this.masterRng,
       getFaultDecision: (domain: FaultDomain, targetMetadata: Record<string, any>) => {
         return this.evaluateFaultDecision(domain, targetMetadata);
       },

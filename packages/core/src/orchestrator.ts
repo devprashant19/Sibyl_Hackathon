@@ -205,7 +205,7 @@ export class SearchOrchestrator {
             });
           }
 
-          let iterStatus: SimulationRun['status'] = 'RUNNING';
+          let iterStatus = 'RUNNING' as SimulationRun['status'];
           let iterError: string | undefined;
 
           await AsyncContext.run({ runId, engine }, async () => {
@@ -339,6 +339,11 @@ export class SearchOrchestrator {
           const engine = AsyncContext.getEngine();
           if (!engine) throw new Error(`No active SimulationEngine found in AsyncLocalStorage for driver ${driver.domain}`);
           return (engine as any).clock;
+        },
+        get prng() {
+          const engine = AsyncContext.getEngine();
+          if (!engine) throw new Error(`No active SimulationEngine found in AsyncLocalStorage for driver ${driver.domain}`);
+          return (engine as any).masterRng;
         },
         getFaultDecision: (domain, meta) => {
           const engine = AsyncContext.getEngine();

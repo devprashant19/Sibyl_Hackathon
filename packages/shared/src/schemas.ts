@@ -209,7 +209,7 @@ export const PromiseResultSchema = z.object({
   passed: z.boolean(),
   severity: PromiseSeveritySchema,
   message: z.string().optional(), // For custom assertions
-  actualValue: z.number().optional(),
+  actualValue: z.union([z.number(), z.string()]).optional(),
   evaluatedAt: z.number(),
   intermittent: z.boolean().optional(),
 });

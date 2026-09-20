@@ -212,6 +212,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
+      '@testcontainers/mysql':
+        specifier: ^12.1.0
+        version: 12.1.0
       '@testcontainers/postgresql':
         specifier: ^12.1.0
         version: 12.1.0
@@ -290,12 +293,21 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: ^3.0.0
         version: 3.1121.0
+      '@testcontainers/kafka':
+        specifier: ^12.1.0
+        version: 12.1.0
+      '@testcontainers/localstack':
+        specifier: ^12.1.0
+        version: 12.1.0
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
       kafkajs:
         specifier: ^2.2.4
         version: 2.2.4
+      testcontainers:
+        specifier: ^10.0.0
+        version: 10.28.0
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
@@ -2459,6 +2471,15 @@ packages:
   '@tediousjs/connection-string@0.6.0':
     resolution: {integrity: sha512-GxlsW354Vi6QqbUgdPyQVcQjI7cZBdGV5vOYVYuCVDTylx2wl3WHR2HlhcxxHTrMigbelpXsdcZso+66uxPfow==}
 
+  '@testcontainers/kafka@12.1.0':
+    resolution: {integrity: sha512-hllpKME5id18IIhwvzibVp+CG7eEvrrzlTZ0HHai5HzXpZe1/fqHWN40GZAWssuowpmVgBDbIwcwhuDdmWFr8A==}
+
+  '@testcontainers/localstack@12.1.0':
+    resolution: {integrity: sha512-nemXUXGpb0SwY4ZntJMGo/0pv8/1Wdlmv8DwFX8ucxzzvXR+gr5eNaq+gGtKBqgIL7q3hsCubxE6eOeVy2BgRw==}
+
+  '@testcontainers/mysql@12.1.0':
+    resolution: {integrity: sha512-fNuN+Fs2N0EQBSk6HVplSl7qxFGUX9gzNw0ljr903PbBhvy2BM3Wl4kVAa1lFpizb8cY8mKYAs0C8cDL5JRIAg==}
+
   '@testcontainers/postgresql@12.1.0':
     resolution: {integrity: sha512-Pjf2VSVNirEPfz36nidyrVAnZvc2YhajOznY4VgyEsvfTd5qiMNOuPq96drREvxAUtXl5SFLX7vXj7sSq4aTcA==}
 
@@ -3290,6 +3311,9 @@ packages:
   common-ancestor-path@2.0.0:
     resolution: {integrity: sha512-dnN3ibLeoRf2HNC+OlCiNc5d2zxbLJXOtiZUudNFSXZrNSydxcCsSpRzXwfu7BBWCIfHPw+xTayeBvJCP/D8Ng==}
     engines: {node: '>= 18'}
+
+  compare-versions@6.1.1:
+    resolution: {integrity: sha512-4hm4VPpIecmlg59CHXnRDnqGplJFrbLG4aFEl5vl6cK1u76ws3LLvX7ikFnTDl5vo39sjWD6AaDPYodJp/NNHg==}
 
   compress-commons@6.0.2:
     resolution: {integrity: sha512-6FqVXeETqWPoGcfzrXb37E50NP0LXT8kAMu5ooZayhWWdgEY4lBEEcbQNXtkuKQsGduxiIcI4gOTsxTmuq/bSg==}
@@ -8357,6 +8381,34 @@ snapshots:
 
   '@tediousjs/connection-string@0.6.0': {}
 
+  '@testcontainers/kafka@12.1.0':
+    dependencies:
+      compare-versions: 6.1.1
+      testcontainers: 12.1.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
+  '@testcontainers/localstack@12.1.0':
+    dependencies:
+      testcontainers: 12.1.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
+  '@testcontainers/mysql@12.1.0':
+    dependencies:
+      testcontainers: 12.1.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
   '@testcontainers/postgresql@12.1.0':
     dependencies:
       testcontainers: 12.1.0
@@ -9242,6 +9294,8 @@ snapshots:
   commander@11.1.0: {}
 
   common-ancestor-path@2.0.0: {}
+
+  compare-versions@6.1.1: {}
 
   compress-commons@6.0.2:
     dependencies:

@@ -1,0 +1,12 @@
+{
+  "runId": "123e4567-e89b-12d3-a456-426614174000",
+  "promises": [
+    {
+      "promiseId": "987e6543-e21b-34c5-b678-426614174999",
+      "simulationRunId": "123e4567-e89b-12d3-a456-426614174000",
+      "passed": true,
+      "severity": "CRITICAL",
+      "evaluatedAt": 1690000000150
+    }
+  ]
+}

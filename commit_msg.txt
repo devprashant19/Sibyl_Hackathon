@@ -1,0 +1,1 @@
+test(determinism): assert byte-identical telemetry logs across all drivers

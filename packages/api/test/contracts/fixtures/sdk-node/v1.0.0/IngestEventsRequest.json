@@ -1,0 +1,15 @@
+{
+  "runId": "123e4567-e89b-12d3-a456-426614174000",
+  "events": [
+    {
+      "domain": "HTTP",
+      "timestamp": 1690000000000,
+      "payload": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/charges",
+        "statusCode": 200,
+        "durationMs": 150
+      }
+    }
+  ]
+}

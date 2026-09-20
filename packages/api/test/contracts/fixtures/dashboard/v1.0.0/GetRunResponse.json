@@ -1,0 +1,19 @@
+{
+  "run": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "environment": "LOCAL_PROCESS",
+    "status": "COMPLETED",
+    "schedules": [
+      {
+        "id": "444e4567-e89b-12d3-a456-426614174111",
+        "spec": {
+          "domain": "HTTP",
+          "type": "TIMEOUT"
+        },
+        "probability": 1
+      }
+    ],
+    "startedAt": 1690000000000,
+    "completedAt": 1690000000150
+  }
+}
