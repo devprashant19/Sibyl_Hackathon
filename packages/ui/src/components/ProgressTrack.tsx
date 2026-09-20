@@ -1,8 +1,9 @@
 import * as React from "react"
-import { cn } from "../utils"
+import { clampPercent, cn } from "../utils"
 
 export interface ProgressTrackProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: number; // 0 to 100
+  /** Percentage 0..100. Out-of-range values are clamped. */
+  value: number;
   indicatorColor?: "gold" | "violet" | "ember";
 }
 
@@ -13,10 +14,15 @@ const ProgressTrack = React.forwardRef<HTMLDivElement, ProgressTrackProps>(
       violet: "bg-violet",
       ember: "bg-ember",
     };
+    const pct = clampPercent(value);
 
     return (
       <div
         ref={ref}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
         className={cn(
           "relative h-2 w-full overflow-hidden rounded-full bg-ink-3",
           className
@@ -28,7 +34,7 @@ const ProgressTrack = React.forwardRef<HTMLDivElement, ProgressTrackProps>(
             "h-full w-full flex-1 transition-all duration-500 ease-in-out motion-reduce:transition-none",
             indicatorColors[indicatorColor]
           )}
-          style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+          style={{ transform: `translateX(-${100 - pct}%)` }}
         />
       </div>
     )
