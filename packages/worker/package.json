@@ -8,6 +8,8 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "bullmq": "^6.3.2",
+    "ioredis": "^6.0.0"
+  }
 }

@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 
 import { SearchStrategy } from './search/strategy';
 import { Ucb1SearchStrategy } from './search/ucb1';
+import { SandboxProvider, Sandbox } from './sandbox/provider';
 
 export interface SearchConfig {
   workflow: () => Promise<void>;
@@ -19,6 +20,7 @@ export interface SearchConfig {
   seed?: string;
   clockOptions?: { mode: 'realtime' | 'accelerated', skewMs?: number };
   strategy?: SearchStrategy;
+  sandboxProvider?: SandboxProvider;
 }
 
 export interface SearchResult {
@@ -85,17 +87,34 @@ export class SearchOrchestrator {
         const runId = crypto.randomUUID();
         const runConfig: SimulationRun = {
           id: runId,
-          environment: 'LOCAL_PROCESS',
+          environment: this.config.sandboxProvider ? 'DOCKER_CONTAINER' : 'LOCAL_PROCESS',
           status: 'PENDING',
           schedules
         };
 
         const engine = new SimulationEngine(runConfig, runSeed, this.config.clockOptions);
         
+        let sandbox: Sandbox | undefined;
+        if (this.config.sandboxProvider) {
+          sandbox = await this.config.sandboxProvider.createSandbox({
+            imageId: 'sibyl-default-sandbox:latest', // In reality, this comes from CLI config
+            maxMemoryMb: 512,
+            maxCpus: 1
+          });
+        }
+
         await AsyncContext.run({ runId, engine }, async () => {
           engine.start();
           try {
-            await this.config.workflow();
+            if (sandbox) {
+              await sandbox.start(['node', 'dist/sandbox-worker.js']);
+              // The sandbox would connect back to the orchestrator to fetch workflow and report events.
+              // We'll simulate its execution finishing here.
+              await sandbox.stop();
+              await sandbox.cleanup();
+            } else {
+              await this.config.workflow();
+            }
           } catch (e) {
             console.error(`Workflow crashed in run ${runId}`, e);
           }

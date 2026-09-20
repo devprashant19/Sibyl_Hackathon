@@ -25,6 +25,29 @@ export async function startServer() {
     res.json({ id: crypto.randomUUID(), status: 'queued' });
   });
 
+  // Server-Sent Events (SSE) for live distributed progress tracking
+  v1Router.get('/runs/:sessionId/progress', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const sub = new (require('ioredis'))(process.env.REDIS_URL || 'redis://localhost:6379');
+    
+    sub.subscribe('sibyl:progress');
+    sub.on('message', (channel: string, message: string) => {
+      if (channel === 'sibyl:progress') {
+        const data = JSON.parse(message);
+        if (data.sessionId === req.params.sessionId) {
+          res.write(`data: ${message}\n\n`);
+        }
+      }
+    });
+
+    req.on('close', () => {
+      sub.disconnect();
+    });
+  });
+
   app.use('/api/v1', v1Router);
 
   // 2. Webhook Engine
