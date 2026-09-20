@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { describe, it, expect } from 'vitest';
 import { 
   ProgrammaticPromise, 
@@ -106,8 +108,6 @@ describe('Promise Framework', () => {
   });
 
   describe('Snapshot Promises', () => {
-    const fs = require('fs');
-    const path = require('path');
     
     it('generates a snapshot and matches it', async () => {
       const snapshotDir = path.join(process.cwd(), '__snapshots__');
