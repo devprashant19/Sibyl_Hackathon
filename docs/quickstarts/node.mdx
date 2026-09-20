@@ -1,53 +1,63 @@
 ---
 title: "Node.js Quickstart"
-description: "Instrument your Node.js application for Sibyl chaos testing."
+description: "Find and replay a failure in a Node.js workflow in a few minutes."
 ---
 
-## 1. Installation
+## 1. Install
 
-Install the Sibyl Node SDK via npm or pnpm:
+The packages are not on npm yet; work inside the repository.
 
 ```bash
-npm install @sibyl/sdk
+git clone https://github.com/devprashant19/Sibyl.git
+cd Sibyl && pnpm install
+mkdir -p packages/cli/examples/mine && cd packages/cli/examples/mine
+node ../../bin/sibyl.js init
 ```
 
-## 2. Global Instrumentation
+`init` writes a `sibyl.config.ts` that runs as-is: a local payment server and a checkout that retries a
+failed payment without an idempotency key.
 
-To inject faults seamlessly without modifying your application logic, initialize Sibyl as early as possible in your application's lifecycle (e.g., in `index.ts` or `server.ts`).
+## 2. Describe the workflow, the faults, and the promise
 
-```typescript
-import { install } from '@sibyl/sdk';
+```ts
+import { defineConfig } from '@sibyl/core';
 
-// This automatically intercepts the standard 'net', 'http', and 'pg' modules
-install({
-  projectId: 'prj_12345',
-  apiKey: process.env.SIBYL_API_KEY
-});
-
-// Continue with your normal app boot sequence
-import './server';
-```
-
-## 3. Defining Promises (Invariants)
-
-Promises define the business invariants that Sibyl will attempt to break.
-
-```typescript
-import { definePromise } from '@sibyl/sdk';
-
-export const checkoutPromise = definePromise({
-  id: 'checkout-idempotency',
-  name: 'Checkout processing is idempotent',
-  description: 'Ensures that a user cannot be double-charged if a webhook is retried.',
-  evaluate: async () => {
-    // Assert against your database or metrics
-    const doubleCharges = await db.query('SELECT count(*) FROM charges WHERE duplicate = true');
-    if (doubleCharges > 0) {
-      return { pass: false, message: 'Double charge detected!' };
-    }
-    return { pass: true, message: 'Clean execution.' };
-  }
+export default defineConfig({
+  drivers: ['http'],                       // intercept fetch and http.request
+  workflow: async () => {
+    charges = 0;
+    await checkout();                      // call into your own code here
+  },
+  templates: [
+    { id: '<uuid>', spec: { domain: 'HTTP', type: 'HTTP_5XX' }, probabilityRange: [0, 1] },
+  ],
+  promises: [
+    {
+      id: 'charge-at-most-once',
+      description: 'A checkout never charges the customer twice',
+      severity: 'CRITICAL',
+      evaluate: () => ({ passed: charges <= 1, message: `charged ${charges} times` }),
+    },
+  ],
 });
 ```
 
-Run `npx @sibyl/cli run` to let the search engine hunt for faults!
+## 3. Search
+
+```bash
+node ../../bin/sibyl.js run -n 30
+```
+
+Each run, the strategy picks a probability for the 503 fault, the HTTP driver injects it into `fetch`,
+and the promise is checked. Failing runs are listed with the command to reproduce them.
+
+## 4. Replay
+
+```bash
+node ../../bin/sibyl.js replay <run-id> --events
+```
+
+`✔ Reproduced: same outcome and same fault decisions.`
+
+Other drivers (Postgres, MySQL, Kafka, SQS, gRPC, filesystem, child processes) wrap a client object;
+see [configuration](https://github.com/devprashant19/Sibyl/blob/main/docs/configuration.md#drivers).

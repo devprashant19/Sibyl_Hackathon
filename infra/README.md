@@ -1,61 +1,49 @@
 # Infrastructure
 
-Infrastructure-as-Code for deploying the Sibyl platform to cloud providers.
+Deployment configuration for the parts of Sibyl that run as services.
 
-## Overview
+## Docker Compose (repository root)
 
-This directory contains Pulumi (TypeScript) and Terraform configurations for provisioning the Sibyl platform infrastructure on AWS, GCP, or Azure. It is used for the Sibyl SaaS deployment and can also serve as a reference for enterprise customers deploying Sibyl in their own cloud accounts.
-
-## Components Provisioned
-
-| Component | Purpose |
-|---|---|
-| **VPC / Network** | Isolated network with public and private subnets |
-| **ECS / GKE / AKS** | Container orchestration for API, Worker, and Dashboard services |
-| **RDS / Cloud SQL** | Managed PostgreSQL 15 |
-| **ElastiCache / Memorystore** | Managed Redis 7 for BullMQ queues |
-| **ALB / Ingress** | Application load balancer with TLS termination |
-| **ECR / GCR / ACR** | Container registry for Docker images |
-| **CloudWatch / Stackdriver** | Log aggregation |
-| **S3 / GCS** | Artifact storage for large simulation results |
-| **IAM** | Service accounts and roles with least-privilege policies |
-
-## Usage
-
-### Pulumi
+Images are built from the monorepo with `docker/Dockerfile` (targets `api`, `dashboard`, `worker`).
 
 ```bash
-cd infra
-npm install
-pulumi up
+docker compose up -d --build                    # API on :4000, dashboard on :3000
+docker compose --profile worker up -d --build   # + Redis and the queue worker (mounts /var/run/docker.sock)
+docker compose --profile enterprise up -d       # + Postgres, only for the SSO/SCIM modules (POSTGRES_URI)
+docker compose -f docker-compose.observability.yml up -d   # Jaeger :16686, Prometheus :9090, Grafana :3001
 ```
 
-### Terraform
+- The API stores sessions in the `sibyl_sessions` volume. Set `SIBYL_API_TOKEN` before exposing port 4000.
+- The dashboard's `NEXT_PUBLIC_SIBYL_API_URL` (default `http://localhost:4000`) is baked in at build time and
+  must be reachable from the browser; change it with `NEXT_PUBLIC_SIBYL_API_URL=... docker compose build dashboard`.
+- The observability stack receives OTLP on 4317/4318, but Sibyl does not export traces or metrics
+  unless the host process registers an OpenTelemetry SDK; Prometheus scrapes only itself and Jaeger
+  (`infra/observability/prometheus.yml`).
+
+## Terraform (`terraform/`)
+
+Kubernetes worker pools that consume the BullMQ queue `simulation-run-queue`, autoscaled by KEDA.
+
+| Module | Creates |
+|---|---|
+| `modules/control-plane` | the `sibyl-system` namespace |
+| `modules/worker-pool` | namespace (optional), Secret with the Redis URL, worker Deployment, KEDA ScaledObject |
+
+It does **not** create Redis, the API, the dashboard, databases, networks or clusters. Prerequisites:
+kubeconfigs at `~/.kube/config-primary` and `~/.kube/config-eu-central`, KEDA installed in each
+cluster (the ScaledObject CRD must exist at plan time), a reachable Redis, and a pushed worker image.
 
 ```bash
 cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # set primary_redis_url / eu_central_redis_url
 terraform init
 terraform plan
-terraform apply
 ```
 
-## Self-Hosted Deployment
+The worker starts simulation sandboxes with the `docker` CLI, which a plain Kubernetes pod does not
+have; running jobs there needs a Docker-capable node setup (e.g. a DinD sidecar) that these modules
+do not provide.
 
-For on-premises or VPC-internal deployments, use the Docker Compose stack in the repository root instead:
+## Pulumi (`index.ts`)
 
-```bash
-docker-compose up -d
-```
-
-See [SELF_HOSTING.md](../SELF_HOSTING.md) for the full self-hosted deployment guide.
-
-## Directory Structure
-
-```
-infra/
-├── index.ts           # Pulumi entry point
-├── Pulumi.yaml        # Pulumi project configuration
-├── package.json       # Pulumi dependencies
-├── tsconfig.json      # TypeScript configuration
-└── terraform/         # Terraform modules (alternative IaC)
-```
+A placeholder program that provisions no resources.

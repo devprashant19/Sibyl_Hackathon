@@ -1,4 +1,0 @@
-chore: update docker-compose.observability.yml configuration
-
-Additional updates:
-- chore: update docker-compose.yml configuration
