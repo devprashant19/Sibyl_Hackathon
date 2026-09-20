@@ -1,65 +1,77 @@
-import { SearchOrchestrator } from '../src/orchestrator';
-import { ProgrammaticPromise, SessionPromiseContext } from '../src/promise';
+import { pathToFileURL } from 'url';
+import { AsyncContext, SearchOrchestrator, type ProgrammaticPromise, type SessionPromiseContext } from '@sibyl/core';
 
 /**
- * Demonstrates a cross-run (session-scoped) promise.
- * 
- * In this example, we generate idempotency keys and we want to ensure
- * that across the entire suite of fault-injected runs, our system never
- * succeeds a charge with the same idempotency key twice.
+ * A cross-run (session-scoped) promise.
+ *
+ *   cd packages/core && npx tsx examples/promise-cross-run.ts
+ *
+ * Each run charges a card with an idempotency key. The key generator is flawed: it draws from only
+ * 20 values, so across a session two different charges eventually share a key, which a payment
+ * provider would treat as the same charge. A run-scoped promise cannot see that; a session-scoped
+ * one, evaluated once after all runs, can.
  */
 
-// A mock state that persists across the runs, simulating a database
-const successfulCharges = new Set<string>();
+// Simulated provider-side record of successful charges, persisting across runs.
+const successfulCharges: { runId: string; idempotencyKey: string }[] = [];
 
-const idempotencyPromise: ProgrammaticPromise = {
-  id: 'no-duplicate-charges',
+const uniqueIdempotencyKeys: ProgrammaticPromise = {
+  id: 'no-duplicate-idempotency-keys',
   description: 'Across all runs, no two successful charges share an idempotency key',
   severity: 'CRITICAL',
   scope: 'session',
   evaluate(ctx) {
-    const sessionCtx = ctx as SessionPromiseContext;
-    
-    // In a real system, we might query the DB directly here at the end of the session,
-    // or aggregate events captured from all runs.
-    // For this example, we'll check the mock DB state directly.
-    const uniqueKeys = new Set(Array.from(successfulCharges));
-    
-    if (uniqueKeys.size !== successfulCharges.size) {
-      return { 
-        passed: false, 
-        message: 'Duplicate idempotency keys were found across successful runs!' 
-      };
+    const { runs } = ctx as SessionPromiseContext;
+    const seen = new Map<string, string>();
+    for (const charge of successfulCharges) {
+      const earlier = seen.get(charge.idempotencyKey);
+      if (earlier) {
+        return {
+          passed: false,
+          message: `Key ${charge.idempotencyKey} was used by run ${earlier} and run ${charge.runId}`,
+        };
+      }
+      seen.set(charge.idempotencyKey, charge.runId);
     }
-    
-    return { 
-      passed: true,
-      message: `Verified ${uniqueKeys.size} unique successful charges across ${sessionCtx.runs.length} runs.`
-    };
-  }
+    return { passed: true, message: `${successfulCharges.length} charges across ${runs.length} runs, all keys unique` };
+  },
 };
 
-async function run() {
+export async function run() {
+  successfulCharges.length = 0;
   const orchestrator = new SearchOrchestrator({
     workflow: async () => {
-      // Mock workflow: generate a random key and attempt a charge
-      // We might accidentally re-use a key if our logic is flawed
-      const key = `charge_idx_${Math.floor(Math.random() * 100)}`;
-      successfulCharges.add(key);
+      const engine = AsyncContext.getEngine();
+      // BUG: a 20-value key space. Drawn from the run's PRNG so the session is reproducible.
+      const key = `charge_${Math.floor((engine?.getPrng().next() ?? Math.random()) * 20)}`;
+      // The charge call may time out (injected), in which case nothing is charged.
+      const fault = engine?.evaluateFaultDecision('HTTP', { service: 'payments' });
+      if (fault?.type === 'TIMEOUT') return;
+      successfulCharges.push({ runId: AsyncContext.getRunId() ?? 'unknown', idempotencyKey: key });
     },
-    templates: [], // No faults for this simple demo
-    promises: [idempotencyPromise],
+    // The timeout template also gives each run a distinct fault schedule; with no templates at all
+    // the orchestrator treats every run as a duplicate of the first and executes only one.
+    templates: [
+      {
+        id: '3a4c2b7e-9f10-4d6b-8e21-5c7d9a0b1c20',
+        spec: { domain: 'HTTP', type: 'TIMEOUT' },
+        probabilityRange: [0, 0.3],
+        target: { service: 'payments' },
+      },
+    ],
+    promises: [uniqueIdempotencyKeys],
     iterations: 10,
-    seed: 'demo-cross-run'
+    seed: 'demo-cross-run',
   });
 
   console.log('Running cross-run orchestration session...');
   const results = await orchestrator.run();
-  
-  console.log('\nSession Promises Results:');
+
+  console.log('\nSession promise results:');
   console.log(JSON.stringify(results.sessionPromiseResults, null, 2));
+  return results;
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   run().catch(console.error);
 }
