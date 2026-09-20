@@ -40,3 +40,13 @@ target/
 
 # Local env files
 .env
+
+# AI coding assistant skills
+.agents/
+
+# IDE
+.vscode/
+.idea/
+
+# Generated design assets
+design-system/

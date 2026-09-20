@@ -1,91 +1,133 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ApiStatus } from "../../components/ApiStatus";
+import { ThemeToggle } from "../../components/ThemeToggle";
 
-const NAV: { href: string; label: string; preview?: boolean; accent?: boolean }[] = [
-  { href: "/runs", label: "Run Explorer" },
-  { href: "/trends", label: "Promise Trends" },
-  { href: "/analytics", label: "Org Analytics", preview: true },
-  { href: "/marketplace", label: "✦ Promise Marketplace", preview: true, accent: true },
+const NAV = [
+  { href: "/runs", label: "Run Explorer", icon: "terminal" },
+  { href: "/trends", label: "Promise Trends", icon: "query_stats" },
+  { href: "/analytics", label: "Org Analytics", icon: "analytics" },
+  { href: "/marketplace", label: "Promise Marketplace", icon: "storefront" },
 ];
 
 const SETTINGS_NAV = [
-  { href: "/settings", label: "Settings" },
-  { href: "/settings/audit", label: "Audit Logs" },
-  { href: "/settings/compliance", label: "Compliance" },
+  { href: "/settings", label: "Settings", icon: "settings" },
+  { href: "/settings/audit", label: "Audit Logs", icon: "receipt_long" },
+  { href: "/settings/compliance", label: "Compliance", icon: "verified_user" },
 ];
 
-function PreviewTag() {
-  return <span className="ml-2 rounded-sm border border-violet/40 px-1 text-[10px] font-mono uppercase text-muted">preview</span>;
-}
-
-// Server component: it only imports client components (ApiStatus) and server-safe markup.
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-screen w-full bg-ink text-parchment font-body overflow-hidden selection:bg-gold/20 selection:text-gold bg-[radial-gradient(ellipse_at_top,_var(--color-ink-2),_transparent_80%)]">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-glass-border bg-glass backdrop-blur-xl flex flex-col relative z-20 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
-        <Link href="/" className="p-6 border-b border-glass-border flex items-center gap-3 group">
-          <div className="h-6 w-6 rounded-md bg-gradient-to-br from-gold to-[#f0d473] shadow-[0_0_12px_rgba(226,193,89,0.4)] flex items-center justify-center transition-transform group-hover:scale-105">
-            <div className="h-2 w-2 rounded-full bg-ink" />
-          </div>
-          <span className="font-display font-semibold text-xl text-parchment tracking-wide drop-shadow-sm">Sibyl</span>
-        </Link>
+  const pathname = usePathname();
 
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+  const NavItem = ({ href, label, icon }: { href: string; label: string; icon: string }) => {
+    const isActive = pathname === href;
+    return (
+      <Link
+        href={href}
+        className={`flex items-center gap-3 px-3 py-2 rounded-r-full text-sm font-medium transition-colors border-l-2 ${
+          isActive 
+            ? "border-green bg-surface-raised text-green" 
+            : "border-transparent text-text-muted hover:text-text hover:bg-surface-raised"
+        }`}
+      >
+        <span className="material-symbols-outlined text-[20px]">{icon}</span>
+        {label}
+      </Link>
+    );
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-bg text-text font-sans overflow-hidden">
+      
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-border bg-surface flex flex-col relative z-20">
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-green text-[20px]">cyclone</span>
+            <span className="font-semibold text-text">Sibyl Engine</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface-raised text-text-dim border border-border ml-auto">v2.4.0</span>
+          </div>
+          
+          <button className="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-red-dim text-red border border-red/20 hover:bg-red/20 transition-colors text-sm font-semibold">
+            <span className="material-symbols-outlined text-[18px]">electric_bolt</span>
+            Inject Chaos
+          </button>
+        </div>
+
+        <nav className="flex-1 py-4 pr-4 space-y-1 overflow-y-auto">
           {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center px-4 py-2.5 rounded-lg transition-all duration-300 text-sm font-medium ${
-                item.accent 
-                  ? "text-gold/90 hover:text-gold hover:bg-gold-dim hover:shadow-[0_0_12px_rgba(226,193,89,0.15)]" 
-                  : "text-muted hover:text-parchment hover:bg-white/5"
-              }`}
-            >
-              {item.label}
-              {item.preview && <PreviewTag />}
-            </Link>
+            <NavItem key={item.href} {...item} />
           ))}
-          <div className="my-4 border-t border-glass-border" />
-          <div className="px-4 pb-2 text-[10px] font-mono text-muted/60 uppercase tracking-widest">Configuration</div>
+          
+          <div className="my-6 border-t border-border w-[80%] mx-auto" />
+          
+          <div className="px-5 pb-2 text-[10px] font-mono text-text-dim uppercase tracking-widest">Configuration</div>
           {SETTINGS_NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center px-4 py-2.5 rounded-lg text-muted hover:text-parchment hover:bg-white/5 transition-all duration-300 text-sm font-medium"
-            >
-              {item.label}
-              <PreviewTag />
-            </Link>
+            <NavItem key={item.href} {...item} />
           ))}
         </nav>
         
         {/* User profile mockup */}
-        <div className="p-4 border-t border-glass-border">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-violet to-ink-3 border border-white/10 flex items-center justify-center text-xs font-bold text-white shadow-inner">
-              u
+        <div className="p-4 border-t border-border bg-surface">
+          <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-raised cursor-pointer transition-colors">
+            <div className="h-8 w-8 rounded-full bg-border flex items-center justify-center text-xs font-bold text-text">
+              JS
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate text-parchment">user@example.com</div>
-              <div className="text-xs text-muted truncate">Free Tier</div>
+              <div className="text-sm font-medium truncate text-text">Jane Smith</div>
+              <div className="text-xs text-text-muted truncate">Admin</div>
             </div>
+            <span className="material-symbols-outlined text-text-muted text-[20px]">more_vert</span>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative">
-        <header className="h-16 border-b border-glass-border flex items-center justify-between px-6 bg-glass backdrop-blur-md z-10 sticky top-0 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-            <span className="text-sm font-medium text-parchment">Local Workspace</span>
+        
+        {/* Top App Bar */}
+        <header className="h-14 border-b border-border bg-surface-raised flex items-center justify-between px-4 z-10 sticky top-0">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-5 h-5 flex items-center justify-center relative">
+                 <div className="w-2.5 h-2.5 rounded-full bg-green" />
+              </div>
+              <span className="font-mono font-semibold text-text">Sibyl</span>
+            </Link>
+            <div className="w-px h-5 bg-border" />
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <span>Projects</span>
+              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              <span className="text-text font-medium">checkout-core</span>
+            </div>
           </div>
-          <ApiStatus />
+
+          <div className="flex items-center gap-4">
+            <div className="relative hidden md:block">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">search</span>
+              <input 
+                type="text" 
+                placeholder="Search resources..." 
+                className="w-64 bg-surface border border-border rounded-md pl-9 pr-12 py-1.5 text-sm focus:outline-none focus:border-green transition-colors"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <kbd className="font-sans text-[10px] bg-surface-raised text-text-muted px-1.5 py-0.5 rounded border border-border">⌘</kbd>
+                <kbd className="font-sans text-[10px] bg-surface-raised text-text-muted px-1.5 py-0.5 rounded border border-border">K</kbd>
+              </div>
+            </div>
+            
+            <ApiStatus />
+            <ThemeToggle />
+            <Link href="/runs" className="px-3 py-1.5 rounded-md bg-green text-bg text-sm font-semibold hover:bg-green-bright transition-colors hidden sm:block">
+              Launch Simulation
+            </Link>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-auto relative z-0">
+        <div className="flex-1 overflow-auto relative z-0 bg-bg">
           {children}
         </div>
       </main>
