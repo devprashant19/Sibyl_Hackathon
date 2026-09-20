@@ -1,0 +1,19 @@
+{
+  "name": "@sibyl-fault-drivers/resource",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sibyl-core": "workspace:*",
+    "@sibyl-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.0"
+  }
+}
