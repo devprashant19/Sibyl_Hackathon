@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { SearchOrchestrator } from '../src/orchestrator';
 import { Ucb1SearchStrategy } from '../src/search/ucb1';
 import { SearchStrategy } from '../src/search/strategy';
-import { FaultSchedule, PromiseResult, FaultScheduleTemplate } from '@sibyl-shared';
+import { FaultSchedule, PromiseResult, FaultScheduleTemplate } from '@sibyl/shared';
 import * as crypto from 'crypto';
 
 describe('SearchOrchestrator Advanced Features', () => {

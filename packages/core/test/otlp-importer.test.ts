@@ -57,7 +57,7 @@ describe('OTLP Trace Importer', () => {
     // Assert HTTP Error Template
     const httpTemplate = templates.find(t => t.spec.domain === 'HTTP')!;
     expect(httpTemplate).toBeDefined();
-    expect(httpTemplate.spec.type).toBe('500_ERROR'); // Because status.code === 2
+    expect(httpTemplate.spec.type).toBe('HTTP_5XX'); // Because status.code === 2
     expect(httpTemplate.target).toEqual({ url: 'https://api.example.com/checkout' });
     
     // Latency was 120ms. 20% fuzz means 96ms to 144ms.
