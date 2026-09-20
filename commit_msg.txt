@@ -1,4 +1,0 @@
-test(core): refactor coverage for promise.test
-
-Additional updates:
-- chore(fault-drivers): refactor package dependencies
