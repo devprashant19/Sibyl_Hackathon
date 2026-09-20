@@ -8,17 +8,18 @@ version = "0.1.0"
 description = "Sibyl Simulation & Fault Injection SDK for Python"
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
-    "requests",
-    "httpx",
-    "psycopg2-binary",
-    "asyncpg"
-]
+# The drivers patch these libraries only if they are importable, so none of them is required.
+dependencies = []
 
 [project.optional-dependencies]
+http = ["requests", "httpx"]
+db = ["psycopg2-binary", "asyncpg"]
 dev = [
     "pytest",
     "fastapi",
     "uvicorn",
     "sqlalchemy"
 ]
+
+[tool.setuptools.packages.find]
+include = ["sibyl*"]

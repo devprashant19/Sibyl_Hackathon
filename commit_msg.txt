@@ -1,4 +1,0 @@
-feat(sdk-java): refactor SDK implementation for SibylAgent
-
-Additional updates:
-- feat(sdk-python): refactor SDK implementation for README
