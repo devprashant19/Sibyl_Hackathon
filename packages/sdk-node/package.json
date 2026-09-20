@@ -1,12 +1,18 @@
 {
   "name": "@sibyl/sdk-node",
   "version": "0.0.0",
-  "description": "SDK for node",
+  "type": "module",
+  "description": "Typed helpers for writing a Sibyl config in TypeScript",
   "scripts": {
     "build": "tsc --build"
   },
   "dependencies": {
     "@sibyl/core": "workspace:*",
     "@sibyl/shared": "workspace:*"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "devDependencies": {
+    "@types/node": "^20.19.43"
   }
 }

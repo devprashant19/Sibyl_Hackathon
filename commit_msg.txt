@@ -1,0 +1,4 @@
+refactor(sdk-node): improve index implementation
+
+Additional updates:
+- chore(sdk-node): update package dependencies
