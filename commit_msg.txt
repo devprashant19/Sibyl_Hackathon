@@ -1,4 +1,0 @@
-feat(sdk-python): refactor SDK implementation for core
-
-Additional updates:
-- chore: update pnpm-lock.yaml configuration
