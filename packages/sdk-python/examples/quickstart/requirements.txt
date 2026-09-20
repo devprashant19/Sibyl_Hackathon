@@ -2,4 +2,4 @@ fastapi
 uvicorn
 asyncpg
 httpx
-sibyl-sdk
+-e ../..

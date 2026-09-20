@@ -12,7 +12,7 @@ Notice the very top of `main.py`:
 from sibyl import install
 install()
 ```
-That's it! Sibyl automatically monkey-patches `asyncpg`, `psycopg2`, `requests`, `httpx`, and the Python runtime's time module (`time.time`, `asyncio.sleep`).
+This installs (currently pass-through) hooks on `asyncpg`, `psycopg2`, `requests` and `httpx`. The clock is not patched globally; wrap simulated code in `with sibyl.VirtualClock():` if it needs virtual time.
 
 ## 3. The Promise
 In `sibyl_config.py`, we use `@define_promise` to declare our invariant:
@@ -23,10 +23,13 @@ def check_inventory(ctx):
     return not any(u.payload.get('args', [0])[0] < 0 for u in updates)
 ```
 
-## 4. Running the Simulation
+## 4. Running
+
+There is no Python orchestrator yet, so the `sibyl` CLI cannot run this example: the promise and
+`templates` in `sibyl_config.py` describe the intended shape and are not evaluated. You can run the
+app itself:
+
 ```bash
-pip install -r requirements.txt
-# (Assuming the sibyl orchestrator can call into python)
-sibyl run --target sibyl_config.py --iterations 10 --local-only
+pip install -e ../..  fastapi uvicorn asyncpg httpx
+uvicorn main:app --port 8000
 ```
-Sibyl injects a `SLOW_IO` delay between the `SELECT` and `UPDATE`, predictably failing the test by causing negative inventory!
