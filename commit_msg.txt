@@ -1,0 +1,4 @@
+feat: data retention and self-hosting docs
+
+Additional updates:
+- feat: enterprise sso and scim provisioning

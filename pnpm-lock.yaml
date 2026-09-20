@@ -87,6 +87,9 @@ importers:
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       '@sibyl-agent':
         specifier: workspace:*
         version: link:../agent

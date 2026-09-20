@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Distributed Tracing Backend
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+  # Metrics Backend
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090" # Prometheus UI
+
+  # Dashboarding
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3001:3000" # Grafana UI (3000 is used by Sibyl Dashboard)
+    depends_on:
+      - prometheus
+      - jaeger
+
+# NOTE: For Prometheus to scrape Sibyl, create a `prometheus.yml` in the root:
+# scrape_configs:
+#   - job_name: 'sibyl'
+#     static_configs:
+#       - targets: ['api:4000']
