@@ -1,4 +1,7 @@
 @import "tailwindcss";
 
+/* Tailwind v4 only auto-detects classes inside this package; scan the shared UI sources too. */
+@source "../../../ui/src";
+
 /* Import Sibyl Design System Theme */
 @import "@sibyl/ui/theme.css";

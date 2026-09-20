@@ -3,43 +3,52 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Button, Badge, CodeBlock } from "@sibyl/ui";
+import { CodeBlock } from "@sibyl/ui";
+
+// Oracle console lines from Appendix A
+const CONSOLE_LINES = [
+  { t: 'cmd', v: '$ sibyl run checkout --iterations 400 --faults bank-api-outage\n' },
+  { t: 'dim', v: 'searching 400 seeds under simulated outage…\n' },
+  { t: 'fail', v: 'seed 0x8f2c → FAIL — every charge gets a receipt\n' },
+  { t: 'dim', v: 'gateway sent "pending" · no handler existed · idempotency key locked payment out\n' }
+];
+
+const TABS = ['home', 'product', 'pricing', 'console'] as const;
 
 export default function MarketingLandingPage() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState<string>('home');
   const [typedText, setTypedText] = useState('');
-  
-  // Oracle console lines from Appendix A
-  const consoleLines = [
-    { t: 'cmd', v: '$ sibyl run checkout --iterations 400 --faults bank-api-outage\n' },
-    { t: 'dim', v: 'searching 400 seeds under simulated outage…\n' },
-    { t: 'fail', v: 'seed 0x8f2c → FAIL — every charge gets a receipt\n' },
-    { t: 'dim', v: 'gateway sent "pending" · no handler existed · idempotency key locked payment out\n' }
-  ];
 
   useEffect(() => {
     let currentLine = 0;
     let currentChar = 0;
     let text = '';
-    
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+
     const typeNext = () => {
-      if (currentLine >= consoleLines.length) return;
-      const line = consoleLines[currentLine];
-      
+      if (cancelled || currentLine >= CONSOLE_LINES.length) return;
+      const line = CONSOLE_LINES[currentLine];
+
       text += line.v[currentChar];
       setTypedText(text);
       currentChar++;
-      
+
       if (currentChar >= line.v.length) {
         currentLine++;
         currentChar = 0;
-        setTimeout(typeNext, 400); // pause between lines
+        timer = setTimeout(typeNext, 400); // pause between lines
       } else {
-        setTimeout(typeNext, 20); // typing speed
+        timer = setTimeout(typeNext, 20); // typing speed
       }
     };
-    
-    typeNext();
+
+    timer = setTimeout(typeNext, 0);
+    // Stop typing on unmount (and under StrictMode's double-invoked effects).
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const scrollTo = (id: string) => {
@@ -60,7 +69,7 @@ export default function MarketingLandingPage() {
           </div>
           
           <div className="hidden md:flex bg-[#12162c] p-1 rounded-full border border-white/10">
-            {['home', 'product', 'pricing', 'console'].map(tab => (
+            {TABS.map(tab => (
               <button 
                 key={tab}
                 onClick={() => scrollTo(tab)}
@@ -71,11 +80,7 @@ export default function MarketingLandingPage() {
             ))}
           </div>
 
-          <Link href="/runs">
-            <button className="px-5 py-2.5 rounded-full border border-white/10 text-sm font-bold hover:bg-[#caa53a]/10 hover:border-[#caa53a] transition-all">
-              Start free
-            </button>
-          </Link>
+          <Link href="/runs" className="inline-block text-center px-5 py-2.5 rounded-full border border-white/10 text-sm font-bold hover:bg-[#caa53a]/10 hover:border-[#caa53a] transition-all">Start free</Link>
         </div>
       </nav>
 
@@ -86,12 +91,10 @@ export default function MarketingLandingPage() {
             <div className="font-mono text-xs text-[#caa53a] uppercase tracking-[0.14em] mb-4">Foresight for production systems</div>
             <h1 className="font-serif text-5xl leading-[1.1] font-semibold mb-6">See the failure<br/>before your customers do.</h1>
             <p className="text-lg text-[#9aa0c0] leading-relaxed mb-8 max-w-xl">
-              Sibyl runs your real workflows through thousands of simulated futures — dropped connections, duplicate webhooks, mistimed retries — and tells you exactly which one breaks a promise your system can't afford to break.
+              Sibyl runs your real workflows through thousands of simulated futures — dropped connections, duplicate webhooks, mistimed retries — and tells you exactly which one breaks a promise your system can&apos;t afford to break.
             </p>
             <div className="flex gap-4 mb-8">
-              <Link href="/runs">
-                <button className="bg-[#caa53a] text-[#1a1200] font-bold px-6 py-3.5 rounded-lg hover:bg-[#dcb949] transition-all">Start free</button>
-              </Link>
+              <Link href="/runs" className="inline-block text-center bg-[#caa53a] text-[#1a1200] font-bold px-6 py-3.5 rounded-lg hover:bg-[#dcb949] transition-all">Start free</Link>
               <button onClick={() => scrollTo('product')} className="border border-white/10 font-bold px-6 py-3.5 rounded-lg hover:border-[#caa53a] hover:text-[#caa53a] transition-all">See how it works</button>
             </div>
             <div className="font-mono text-xs text-[#9aa0c0]">Node.js · Python · Java · Go · Runs in your own infra</div>
@@ -159,7 +162,7 @@ export default function MarketingLandingPage() {
                 <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>MCTS Search</li>
                 <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>Slack/PagerDuty</li>
               </ul>
-              <Link href="/runs"><button className="w-full bg-[#caa53a] text-[#1a1200] font-bold py-3 rounded-lg hover:bg-[#dcb949]">Start free trial</button></Link>
+              <Link href="/runs" className="inline-block text-center w-full bg-[#caa53a] text-[#1a1200] font-bold py-3 rounded-lg hover:bg-[#dcb949]">Start free trial</Link>
             </div>
 
             <div className="bg-[#12162c] border border-white/10 p-8 rounded-2xl">
@@ -170,6 +173,26 @@ export default function MarketingLandingPage() {
                 <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>VPC Deployment</li>
                 <li className="border-t border-white/5 pt-3"><span className="text-[#caa53a] mr-2">—</span>SAML SSO & SCIM</li>
               </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* CONSOLE */}
+        <section id="page-console">
+          <div className="font-mono text-xs text-[#caa53a] uppercase tracking-[0.14em] mb-4">Console</div>
+          <h2 className="font-serif text-4xl font-semibold mb-4">Every seed, replayable.</h2>
+          <p className="text-lg text-[#9aa0c0] leading-relaxed mb-8 max-w-2xl">
+            Point the CLI at a Sibyl API and the console shows sessions live, lists every failing run with its fault schedule and event timeline, and gives you the exact command to replay it.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <CodeBlock
+              language="shell"
+              className="bg-[#12162c] border border-white/10 text-[#ece4d3]"
+              code={"$ SIBYL_API_URL=http://localhost:4000 sibyl run checkout\n$ sibyl replay <runId>\n$ sibyl explain <runId>"}
+            />
+            <div className="flex flex-col gap-3">
+              <Link href="/runs" className="inline-block text-center bg-[#caa53a] text-[#1a1200] font-bold px-6 py-3.5 rounded-lg hover:bg-[#dcb949] transition-all">Open the console</Link>
+              <Link href="/trends" className="inline-block text-center border border-white/10 font-bold px-6 py-3.5 rounded-lg hover:border-[#caa53a] hover:text-[#caa53a] transition-all">Promise trends</Link>
             </div>
           </div>
         </section>
