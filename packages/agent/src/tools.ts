@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { Tool } from "@anthropic-ai/sdk/resources/messages";
 
 export const getPromisesTool: Tool = {
