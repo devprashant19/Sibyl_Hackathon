@@ -1,0 +1,4 @@
+chore(api): refactor configuration for tsconfig
+
+Additional updates:
+- chore(cli): refactor package dependencies

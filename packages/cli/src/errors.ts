@@ -49,7 +49,7 @@ export function handleError(err: any): never {
   else if (err instanceof SDKMismatchError) {
     console.error(chalk.red.bold('❌ SDK Version Mismatch'));
     console.error(chalk.white(err.message));
-    console.error(chalk.gray(`\nTip: Ensure both @sibyl-cli and your project's @sibyl-core versions are synchronized.`));
+    console.error(chalk.gray(`\nTip: Ensure both @sibyl/cli and your project's @sibyl/core versions are synchronized.`));
     console.error(chalk.gray(`Expected: ${err.expectedVersion} | Found: ${err.actualVersion}`));
   } 
   else {

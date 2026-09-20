@@ -6,8 +6,8 @@ import cliProgress from 'cli-progress';
 import { execSync } from 'child_process';
 import { handleError, ConfigLoadError, ApiKeyError, NetworkError, SDKMismatchError } from './errors';
 // Need dynamic import for the user's config
-// import { SearchOrchestrator } from '@sibyl-core'; // Stub
-import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer, BudgetExceededError, ClaudeUnavailableError } from '@sibyl-agent';
+// import { SearchOrchestrator } from '@sibyl/core'; // Stub
+import { SibylInvestigator, SibylExplainer, SibylPatcher, SibylPostmortemAnalyzer, BudgetExceededError, ClaudeUnavailableError } from '@sibyl/agent';
 
 const program = new Command();
 
@@ -70,9 +70,9 @@ program
       if (fs.existsSync(pkgPath)) {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
         const cliVersion = require('../../package.json').version; // local package.json
-        const coreVersion = pkg.dependencies?.['@sibyl-core'] || pkg.devDependencies?.['@sibyl-core'];
+        const coreVersion = pkg.dependencies?.['@sibyl/core'] || pkg.devDependencies?.['@sibyl/core'];
         if (!coreVersion) {
-          sdkInfo = '@sibyl-core not installed in project';
+          sdkInfo = '@sibyl/core not installed in project';
         } else if (coreVersion.replace('^', '').replace('~', '') !== cliVersion) {
           sdkInfo = \`Version mismatch (CLI: \${cliVersion}, Project: \${coreVersion})\`;
         } else {
@@ -104,7 +104,7 @@ program
       console.log(chalk.yellow.bold('⚠️  Some checks failed. See the tips below:'));
       if (!hasConfig) console.log(chalk.gray('- Run `sibyl init` to generate a configuration file.'));
       if (!apiPassed) console.log(chalk.gray('- Set a valid ANTHROPIC_API_KEY environment variable.'));
-      if (!sdkPassed) console.log(chalk.gray('- Ensure your project depends on the same version of @sibyl-core as this CLI.'));
+      if (!sdkPassed) console.log(chalk.gray('- Ensure your project depends on the same version of @sibyl/core as this CLI.'));
       if (!dockerPassed) console.log(chalk.gray('- Start your Docker daemon if you intend to use Sandbox isolated environments.'));
       process.exit(1);
     }
@@ -121,7 +121,7 @@ program
       process.exit(1);
     }
 
-    const template = `import { ProgrammaticPromise, FaultScheduleTemplate } from '@sibyl-shared';
+    const template = `import { ProgrammaticPromise, FaultScheduleTemplate } from '@sibyl/shared';
 
 export const promises: ProgrammaticPromise[] = [
   {
