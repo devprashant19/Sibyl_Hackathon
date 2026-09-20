@@ -10,7 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
   const codeLensProvider = new SibylCodeLensProvider();
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
-      { scheme: 'file', language: 'typescript' },
+      [{ scheme: 'file', language: 'typescript' }, { scheme: 'file', language: 'javascript' }],
       codeLensProvider
     )
   );

@@ -1,0 +1,1 @@
+chore(vscode-extension): refactor package dependencies
