@@ -1,15 +1,9 @@
+import { trace, metrics } from '@opentelemetry/api';
 import type { Tracer, Meter } from '@opentelemetry/api';
 
-let trace: any;
-let metrics: any;
-try {
-  const api = require('@opentelemetry/api');
-  trace = api.trace;
-  metrics = api.metrics;
-} catch (e) {
-  trace = { getTracer: () => ({ startActiveSpan: (n: any, o: any, cb: any) => cb({ setStatus: ()=>{}, recordException: ()=>{}, end: ()=>{} }) }) };
-  metrics = { getMeter: () => ({ createObservableGauge: ()=>({addCallback:()=>{}}), createHistogram: ()=>({record:()=>{}}), createCounter: ()=>({add:()=>{}}) }) };
-}
+// @opentelemetry/api is a real dependency and falls back to no-op providers when no SDK is
+// registered, so there is no need for the old try/require dance — which silently chose a hand-made
+// no-op whenever `require` was undefined (ESM, vitest), even with an SDK registered.
 
 let isInitialized = false;
 let tracer: Tracer;
@@ -20,14 +14,13 @@ let queueDepthGauge: any;
 let sandboxLatencyHistogram: any;
 let searchSessionHistogram: any;
 let agentCostCounter: any;
+let latestQueueDepth = 0;
 
 export class Telemetry {
   
   public static init() {
     if (isInitialized) return;
 
-    console.log('[Telemetry] Initializing OpenTelemetry tracing and metrics...');
-    
     // Fallback to global no-op providers if the SDK isn't fully bootstrapped by the consumer
     tracer = trace.getTracer('sibyl-core');
     meter = metrics.getMeter('sibyl-core');
@@ -36,6 +29,9 @@ export class Telemetry {
     queueDepthGauge = meter.createObservableGauge('sibyl.queue.depth', {
       description: 'Current number of simulation runs queued',
     });
+    // One callback, registered once, observing the latest value. Registering a callback per
+    // recordQueueDepth() call leaked callbacks and reported every depth ever recorded.
+    queueDepthGauge.addCallback((result: any) => result.observe(latestQueueDepth));
 
     sandboxLatencyHistogram = meter.createHistogram('sibyl.sandbox.cold_start_ms', {
       description: 'Time taken to boot a Docker sandbox',
@@ -61,7 +57,7 @@ export class Telemetry {
    */
   public static startRunSpan<T>(runId: string, phase: 'queued' | 'sandboxed' | 'executed' | 'ingested', fn: () => Promise<T>): Promise<T> {
     if (!isInitialized) this.init();
-    return tracer.startActiveSpan(`run.${phase}`, { attributes: { runId } }, async (span) => {
+    return tracer.startActiveSpan(`run.${phase}`, { attributes: { runId } }, async (span: any) => {
       try {
         const result = await fn();
         span.setStatus({ code: 1 }); // OK
@@ -80,9 +76,7 @@ export class Telemetry {
 
   public static recordQueueDepth(depth: number) {
     if (!isInitialized) this.init();
-    queueDepthGauge.addCallback((result: any) => {
-      result.observe(depth);
-    });
+    latestQueueDepth = depth;
   }
 
   public static recordSandboxLatency(ms: number) {

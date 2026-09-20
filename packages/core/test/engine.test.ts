@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SimulationEngine } from '../src/engine';
 import { FaultDriver, DriverContext } from '../src/driver';
-import { SimulationRun, FaultDomain } from '@sibyl-shared';
+import { SimulationRun, FaultDomain } from '@sibyl/shared';
 
 class MockDriver implements FaultDriver {
   context?: DriverContext;
