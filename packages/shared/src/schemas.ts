@@ -163,6 +163,17 @@ export const FaultScheduleSchema = z.object({
 
 export type FaultSchedule = z.infer<typeof FaultScheduleSchema>;
 
+// Template allows probability and specific numeric fields (like delayMs) to be ranges [min, max]
+export const FaultScheduleTemplateSchema = z.object({
+  id: z.string().uuid(),
+  spec: z.any(), // Will be merged into a concrete FaultSpec
+  probabilityRange: z.tuple([z.number(), z.number()]).optional(),
+  delayMsRange: z.tuple([z.number(), z.number()]).optional(),
+  target: z.record(z.string(), z.any()).optional(),
+});
+
+export type FaultScheduleTemplate = z.infer<typeof FaultScheduleTemplateSchema>;
+
 export const SimulationRunSchema = z.object({
   id: z.string().uuid(),
   environment: SimulationEnvironmentSchema,
@@ -176,12 +187,17 @@ export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 
 // --- Promises (Hypotheses) ---
 
+export const PromiseSeveritySchema = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
+export type PromiseSeverity = z.infer<typeof PromiseSeveritySchema>;
+
 export const PromiseSchema = z.object({
   id: z.string().uuid(),
   description: z.string(),
-  metric: z.string(), // e.g., 'latency_p99', 'error_rate'
-  operator: z.enum(['<', '<=', '>', '>=', '==', '!=']),
-  threshold: z.number(),
+  severity: PromiseSeveritySchema.default('CRITICAL'),
+  // We keep these for legacy static eval, but they are optional for programmatic promises
+  metric: z.string().optional(),
+  operator: z.enum(['<', '<=', '>', '>=', '==', '!=']).optional(),
+  threshold: z.number().optional(),
 });
 
 export type Promise = z.infer<typeof PromiseSchema>;
@@ -190,7 +206,9 @@ export const PromiseResultSchema = z.object({
   promiseId: z.string().uuid(),
   simulationRunId: z.string().uuid(),
   passed: z.boolean(),
-  actualValue: z.number(),
+  severity: PromiseSeveritySchema,
+  message: z.string().optional(), // For custom assertions
+  actualValue: z.number().optional(),
   evaluatedAt: z.number(),
 });
 
