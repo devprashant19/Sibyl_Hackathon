@@ -1,26 +1,79 @@
-# Sibyl GitLab CI Component
-# Include this file in your .gitlab-ci.yml to run chaos simulations.
+# Sibyl GitLab CI component
+#
+#   include:
+#     - local: packages/integrations/gitlab/sibyl.gitlab-ci.yml   # or `project:` / `component:`
+#       inputs:
+#         config: sibyl.config.ts
+#
+# Runs `sibyl ci`, which exits 1 when any run fails or errors (and, unless allow_intermittent is
+# true, when any run is intermittent) or when the config cannot be loaded. The JUnit report is
+# uploaded even when the job fails.
+#
+# Prerequisite: the Sibyl CLI is not published to npm. `install` must install a project whose
+# dependencies include @sibyl/cli and @sibyl/core (the config imports @sibyl/core).
+# Set SIBYL_API_URL and SIBYL_API_TOKEN (masked) as CI/CD variables to upload sessions to the API.
 
 spec:
   inputs:
-    target:
+    config:
       description: "Path to your sibyl.config.ts"
       default: "sibyl.config.ts"
     iterations:
-      description: "Number of permutations to test"
-      default: "100"
+      description: "Number of runs (-n). Empty uses the config's value"
+      default: ""
+    seed:
+      description: "Master seed. Empty picks a random seed"
+      default: ""
+    junit:
+      description: "Where to write the JUnit XML report"
+      default: "reports/sibyl-junit.xml"
+    require_upload:
+      description: "Fail when the upload to SIBYL_API_URL fails"
+      type: boolean
+      default: false
+    allow_intermittent:
+      description: "Do not fail for intermittent (flaky) runs"
+      type: boolean
+      default: false
+    install:
+      description: "Command that installs the project (must provide @sibyl/cli and @sibyl/core)"
+      default: "corepack enable && pnpm install --frozen-lockfile"
+    cli:
+      description: "Command that runs the CLI; the default never downloads from npm"
+      default: "npx --no sibyl"
     image:
       description: "Docker image to run the simulation in"
-      default: "node:20-alpine"
+      default: "node:22"
 
 ---
 
-sibyl_chaos_test:
+sibyl_ci:
   stage: test
   image: $[[ inputs.image ]]
+  # Inputs are passed as variables and quoted in the script, so values with spaces stay one argument.
+  variables:
+    SIBYL_CONFIG: "$[[ inputs.config ]]"
+    SIBYL_ITERATIONS: "$[[ inputs.iterations ]]"
+    SIBYL_SEED: "$[[ inputs.seed ]]"
+    SIBYL_JUNIT: "$[[ inputs.junit ]]"
+    SIBYL_REQUIRE_UPLOAD: "$[[ inputs.require_upload ]]"
+    SIBYL_ALLOW_INTERMITTENT: "$[[ inputs.allow_intermittent ]]"
+    SIBYL_CLI: "$[[ inputs.cli ]]"
   script:
-    - echo "Running Sibyl Chaos Engine..."
-    - npx @sibyl/cli ci --target $[[ inputs.target ]] --iterations $[[ inputs.iterations ]]
+    - $[[ inputs.install ]]
+    - |
+      set -- ci -c "$SIBYL_CONFIG" --junit "$SIBYL_JUNIT"
+      if [ -n "$SIBYL_ITERATIONS" ]; then set -- "$@" -n "$SIBYL_ITERATIONS"; fi
+      if [ -n "$SIBYL_SEED" ]; then set -- "$@" --seed "$SIBYL_SEED"; fi
+      if [ "$SIBYL_REQUIRE_UPLOAD" = "true" ]; then set -- "$@" --require-upload; fi
+      if [ "$SIBYL_ALLOW_INTERMITTENT" = "true" ]; then set -- "$@" --allow-intermittent; fi
+      $SIBYL_CLI "$@"
+  artifacts:
+    when: always
+    paths:
+      - $[[ inputs.junit ]]
+    reports:
+      junit: $[[ inputs.junit ]]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
