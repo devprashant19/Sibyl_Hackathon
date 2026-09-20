@@ -1,0 +1,4 @@
+fix: resolve build and compilation errors across workspace
+
+Additional updates:
+- feat: add INTERMITTENT status

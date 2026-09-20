@@ -158,4 +158,29 @@ export class Ucb1SearchStrategy implements SearchStrategy {
       this.shrinkQueue.push(pruned);
     }
   }
+
+  exportState(): any {
+    return {
+      totalRuns: this.totalRuns,
+      coverage: Array.from(this.coverage.entries()),
+      shrinkMode: this.shrinkMode,
+      shrinkAnchor: this.shrinkAnchor,
+      shrinkQueue: this.shrinkQueue,
+      prng: (this.prng as any).exportState()
+    };
+  }
+
+  importState(state: any): void {
+    if (!state) return;
+    this.totalRuns = state.totalRuns || 0;
+    if (state.coverage) {
+      this.coverage = new Map(state.coverage);
+    }
+    this.shrinkMode = state.shrinkMode || false;
+    this.shrinkAnchor = state.shrinkAnchor || null;
+    this.shrinkQueue = state.shrinkQueue || [];
+    if (state.prng && (this.prng as any).importState) {
+      (this.prng as any).importState(state.prng);
+    }
+  }
 }

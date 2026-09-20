@@ -36,7 +36,7 @@ describe('Search Strategy Benchmarks', () => {
       { id: 't1', spec: { domain: 'HTTP', type: 'TIMEOUT' }, probabilityRange: [0, 1], target: { target: 'A' } },
       { id: 't2', spec: { domain: 'DATABASE', type: 'DEADLOCK' }, probabilityRange: [0, 1], target: { target: 'B' } },
       { id: 't3', spec: { domain: 'MESSAGE_QUEUE', type: 'MESSAGE_LOSS' }, probabilityRange: [0, 1], target: { target: 'C' } },
-      { id: 't4', spec: { domain: 'HTTP', type: '500_ERROR' }, probabilityRange: [0, 1] }, // Noise
+      { id: 't4', spec: { domain: 'HTTP', type: 'HTTP_5XX' }, probabilityRange: [0, 1] }, // Noise
       { id: 't5', spec: { domain: 'DATABASE', type: 'SLOW_QUERY' }, probabilityRange: [0, 1] }, // Noise
     ];
 

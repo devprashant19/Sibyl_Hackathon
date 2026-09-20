@@ -61,4 +61,18 @@ export class PRNG {
     const newSeed = fnv1a(this.initialSeed.toString() + ":" + namespace);
     return new PRNG(newSeed);
   }
+
+  exportState(): any {
+    return {
+      state: this.state,
+      initialSeed: this.initialSeed
+    };
+  }
+
+  importState(data: any): void {
+    if (data && typeof data.state === 'number') {
+      this.state = data.state;
+      this.initialSeed = data.initialSeed;
+    }
+  }
 }

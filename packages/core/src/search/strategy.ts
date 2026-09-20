@@ -19,4 +19,14 @@ export interface SearchStrategy {
    * Called after a run completes to update internal knowledge (UCB1 weights, shrinking logic).
    */
   feedback(runResult: SearchRunRecord): void;
+
+  /**
+   * Export the strategy's internal state for pausing/resuming.
+   */
+  exportState?(): any;
+
+  /**
+   * Import the strategy's internal state to resume from a pause.
+   */
+  importState?(state: any): void;
 }
