@@ -39,7 +39,7 @@ export function wrapSqsClient(client: any, driver: MqFaultDriver): any {
             }
 
             if (fault.type === 'OUT_OF_ORDER_DELIVERY') {
-              await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
+              await new Promise(resolve => setTimeout(resolve, context.prng.next() * 50));
             }
           }
 

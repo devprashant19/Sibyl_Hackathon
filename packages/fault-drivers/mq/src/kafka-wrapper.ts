@@ -54,8 +54,8 @@ function wrapProducer(producer: any, driver: MqFaultDriver): any {
             if (record.messages && record.messages.length > 1) {
               record.messages.reverse();
             } else {
-              // Artificial random jitter to disrupt sequence
-              await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
+              // Artificial random jitter to disrupt sequence, using deterministic prng
+              await new Promise(resolve => setTimeout(resolve, driver.context!.prng.next() * 50));
             }
             return target.send(record);
           }

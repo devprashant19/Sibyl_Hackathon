@@ -96,9 +96,9 @@ describe('HttpFaultDriver with VirtualClock', () => {
       delayMs: 100
     } as any);
 
-    const start = performance.now();
+    const start = Date.now();
     await fetch(`${serverUrl}/slow`);
-    const end = performance.now();
+    const end = Date.now();
 
     expect(end - start).toBeGreaterThanOrEqual(90);
   });
@@ -110,14 +110,14 @@ describe('HttpFaultDriver with VirtualClock', () => {
       delayMs: 100
     } as any);
 
-    const start = performance.now();
+    const start = Date.now();
     let errorCause = '';
     try {
       await fetch(`${serverUrl}/`);
     } catch (e: any) {
       errorCause = e.cause?.message || e.message;
     }
-    const end = performance.now();
+    const end = Date.now();
 
     expect(errorCause).toMatch(/ETIMEDOUT/);
     expect(end - start).toBeGreaterThanOrEqual(90);

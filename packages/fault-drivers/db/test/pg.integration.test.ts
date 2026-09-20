@@ -135,7 +135,7 @@ describe('Postgres DatabaseFaultDriver Integration', () => {
     });
 
     const client = await wrappedPool.connect();
-    const start = performance.now();
+    const start = Date.now();
 
     try {
       await client.query('SELECT * FROM users');
@@ -145,7 +145,7 @@ describe('Postgres DatabaseFaultDriver Integration', () => {
       expect(e.code).toBe('57014');
     }
 
-    const duration = performance.now() - start;
+    const duration = Date.now() - start;
     expect(duration).toBeGreaterThanOrEqual(40);
 
     client.release();
@@ -159,9 +159,9 @@ describe('Postgres DatabaseFaultDriver Integration', () => {
     });
 
     const client = await wrappedPool.connect();
-    const start = performance.now();
+    const start = Date.now();
     await client.query('SELECT * FROM users');
-    const duration = performance.now() - start;
+    const duration = Date.now() - start;
 
     expect(duration).toBeGreaterThanOrEqual(90);
 
