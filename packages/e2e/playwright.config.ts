@@ -56,7 +56,7 @@ export default defineConfig({
       timeout: 120 * 1000,
     },
     {
-      command: 'pnpm --filter @sibyl-core run-api-server',
+      command: 'pnpm --filter @sibyl/core run-api-server',
       url: 'http://localhost:4000/api/v1/runs',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

@@ -1,0 +1,4 @@
+test(dashboard): refactor coverage for setup
+
+Additional updates:
+- test(dashboard): refactor coverage for views.test
