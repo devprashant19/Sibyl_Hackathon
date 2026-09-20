@@ -4,6 +4,7 @@ import * as React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { LaunchSimulationButton } from "../components/LaunchSimulationButton";
 
 // Oracle console lines
 const CONSOLE_LINES = [
@@ -80,7 +81,9 @@ export default function MarketingLandingPage() {
 
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <Link href="/runs" className="hidden sm:inline-block px-4 py-1.5 rounded-md bg-green text-bg text-sm font-semibold hover:bg-green-bright transition-colors">Launch Simulation</Link>
+            <LaunchSimulationButton className="hidden sm:inline-block px-4 py-1.5 rounded-md bg-green text-bg text-sm font-semibold hover:bg-green-bright transition-colors">
+              Launch Simulation
+            </LaunchSimulationButton>
           </div>
         </div>
       </nav>
@@ -101,9 +104,9 @@ export default function MarketingLandingPage() {
               Sibyl runs your real workflows through thousands of simulated futures — dropped connections, duplicate webhooks, mistimed retries — and tells you exactly which one breaks a promise your system can&apos;t afford to break.
             </p>
             <div className="flex flex-wrap gap-4 mb-10">
-              <Link href="/runs" className="inline-block bg-green text-bg font-semibold px-6 py-3 rounded-lg hover:bg-green-bright transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+              <LaunchSimulationButton className="inline-block bg-green text-bg font-semibold px-6 py-3 rounded-lg hover:bg-green-bright transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
                 Launch Simulation
-              </Link>
+              </LaunchSimulationButton>
               <button onClick={() => scrollTo('product')} className="border border-border font-semibold px-6 py-3 rounded-lg hover:border-text hover:text-text transition-all bg-surface">
                 See how it works
               </button>

@@ -202,7 +202,138 @@ export function createApp(options: AppOptions): { app: Express; bus: EventEmitte
     }
   });
 
+  // ── Demo simulation endpoint ────────────────────────────────────────────────
+  // POST /api/v1/demo/run
+  // Runs a scripted fake simulation scenario, streaming SSE progress events to
+  // any open dashboard tab, then saves the completed session so it shows up in
+  // the Run Explorer immediately.
+  v1.post('/demo/run', async (req, res) => {
+    const scenarios = [
+      {
+        project: 'checkout',
+        seed: `demo-${crypto.randomUUID().slice(0, 8)}`,
+        strategy: 'ucb1' as const,
+        promises: [
+          { id: 'charge-at-most-once', description: 'A checkout never charges twice', severity: 'CRITICAL' as const, scope: 'run' as const },
+          { id: 'inventory-consistent', description: 'Stock never goes negative', severity: 'HIGH' as const, scope: 'run' as const },
+        ],
+        faultType: 'HTTP/HTTP_5XX',
+        totalRuns: 30,
+        failRate: 0.18,
+      },
+      {
+        project: 'notifications',
+        seed: `demo-${crypto.randomUUID().slice(0, 8)}`,
+        strategy: 'bayesian' as const,
+        promises: [
+          { id: 'push-within-sla', description: 'Push notifications arrive within 500ms SLA', severity: 'HIGH' as const, scope: 'run' as const },
+          { id: 'no-duplicate-push', description: 'A push is never delivered twice', severity: 'MEDIUM' as const, scope: 'run' as const },
+        ],
+        faultType: 'HTTP/SLOW_RESPONSE',
+        totalRuns: 50,
+        failRate: 0.08,
+      },
+    ];
+    const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+    const sessionId = crypto.randomUUID();
+
+    // Respond immediately with the session ID so the UI can open the SSE stream
+    res.status(202).json({ data: { sessionId, project: scenario.project } });
+
+    // Stream progress ticks asynchronously — don't await response
+    void (async () => {
+      const total = scenario.totalRuns;
+      let failures = 0;
+
+      for (let done = 1; done <= total; done++) {
+        await new Promise(r => setTimeout(r, 200 + Math.random() * 150));
+        const isFail = Math.random() < scenario.failRate;
+        if (isFail) failures++;
+
+        publish({
+          type: 'progress',
+          sessionId,
+          project: scenario.project,
+          done,
+          total,
+          failures,
+        });
+      }
+
+      // Build and save the completed session
+      const makeRun = (seed: string, status: 'COMPLETED' | 'FAILED' | 'INTERMITTENT', failedIds: string[] = []) => {
+        const runId = `run-${crypto.randomUUID()}`;
+        return {
+          runId,
+          seed,
+          status,
+          passed: status === 'COMPLETED',
+          concreteSchedules: [{ id: crypto.randomUUID(), spec: { domain: 'HTTP' as const, type: 'SLOW_RESPONSE', delayMs: 1200 }, probability: 0.4 }],
+          promiseResults: scenario.promises.map(p => ({
+            promiseId: p.id,
+            simulationRunId: runId,
+            passed: !failedIds.includes(p.id),
+            severity: p.severity,
+            message: failedIds.includes(p.id) ? `Assertion violated under ${scenario.faultType}` : undefined,
+            actualValue: failedIds.includes(p.id) ? 'unexpected_state' : undefined,
+            evaluatedAt: Date.now(),
+            intermittent: status === 'INTERMITTENT' && failedIds.includes(p.id),
+          })),
+          durationMs: 180 + Math.floor(Math.random() * 400),
+          eventCount: failedIds.length > 0 ? 2 : 0,
+          events: failedIds.length > 0 ? [
+            { domain: 'HTTP' as const, id: crypto.randomUUID(), fault: 'SLOW_RESPONSE', timestamp: Date.now() - 300, payload: { method: 'POST', url: '/api/charge', statusCode: 504, durationMs: 1205 } },
+            { domain: 'DATABASE' as const, id: crypto.randomUUID(), timestamp: Date.now() - 50, payload: { query: 'INSERT INTO charges', durationMs: 6 } },
+          ] : undefined,
+        };
+      };
+
+      const runs = [];
+      let built = 0;
+      for (let i = 0; i < total; i++) {
+        const isFail = built / total < scenario.failRate && Math.random() < 0.5;
+        const isInt = !isFail && Math.random() < 0.03;
+        const status = isFail ? 'FAILED' : isInt ? 'INTERMITTENT' : 'COMPLETED';
+        const failedIds = (isFail || isInt) ? [scenario.promises[0].id] : [];
+        runs.push(makeRun(`${scenario.seed}-r${i}`, status, failedIds));
+        if (isFail || isInt) built++;
+      }
+
+      try {
+        await store.createSession({
+          id: sessionId,
+          project: scenario.project,
+          seed: scenario.seed,
+          strategy: scenario.strategy,
+          iterations: total,
+          startedAt: Date.now() - total * 250,
+          completedAt: Date.now(),
+          source: 'demo',
+          promises: scenario.promises,
+          summary: {
+            totalRuns: total,
+            failures: runs.filter(r => r.status === 'FAILED').length,
+            passes: runs.filter(r => r.status === 'COMPLETED').length,
+            errored: 0,
+            intermittent: runs.filter(r => r.status === 'INTERMITTENT').length,
+          },
+          runs,
+        });
+      } catch { /* already exists */ }
+
+      publish({
+        type: 'completed',
+        sessionId,
+        project: scenario.project,
+        done: total,
+        total,
+        failures,
+      });
+    })();
+  });
+
   app.use('/api/v1', v1);
+
 
   app.use((_req, _res, next) => next(new HttpError(404, 'not_found', 'No such route.')));
 

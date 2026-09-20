@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ApiStatus } from "../../components/ApiStatus";
 import { ThemeToggle } from "../../components/ThemeToggle";
+import { LaunchSimulationButton } from "../../components/LaunchSimulationButton";
 
 const NAV = [
   { href: "/runs", label: "Run Explorer", icon: "terminal" },
@@ -119,9 +120,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <ApiStatus />
             <ThemeToggle />
-            <Link href="/runs" className="px-3 py-1.5 rounded-md bg-green text-bg text-sm font-semibold hover:bg-green-bright transition-colors hidden sm:block">
+            <LaunchSimulationButton className="px-3 py-1.5 rounded-md bg-green text-bg text-sm font-semibold hover:bg-green-bright transition-colors hidden sm:block">
               Launch Simulation
-            </Link>
+            </LaunchSimulationButton>
           </div>
         </header>
 

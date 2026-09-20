@@ -155,4 +155,13 @@ export const api = {
   /** SSE stream of ProgressEvents for every session, or for one session when `sessionId` is given. */
   progressStreamUrl: (sessionId?: string) =>
     sessionId ? apiUrl(`/api/v1/sessions/${encodeURIComponent(sessionId)}/progress`) : apiUrl("/api/v1/events"),
+
+  /** Kicks off a scripted demo simulation on the server. Returns the sessionId to watch via SSE. */
+  launchDemoRun: async (): Promise<{ sessionId: string; project: string }> => {
+    const url = apiUrl("/api/v1/demo/run");
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" } });
+    if (!res.ok) throw new ApiError("http", `Demo run failed (HTTP ${res.status})`, url, { status: res.status });
+    const body = await res.json() as { data: { sessionId: string; project: string } };
+    return body.data;
+  },
 };
