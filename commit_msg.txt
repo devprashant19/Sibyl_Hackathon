@@ -1,0 +1,4 @@
+chore(sdk-node): refactor package dependencies
+
+Additional updates:
+- chore(sdk-node): refactor package dependencies

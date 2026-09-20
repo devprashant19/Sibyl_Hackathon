@@ -4,7 +4,7 @@ Shared TypeScript types, Zod schemas, and database models used across the Sibyl 
 
 ## Overview
 
-This package is the **single source of truth** for all cross-package type definitions. Every other package in the monorepo depends on `@sibyl-shared` for runtime-validated schemas and TypeScript types.
+This package is the **single source of truth** for all cross-package type definitions. Every other package in the monorepo depends on `@sibyl/shared` for runtime-validated schemas and TypeScript types.
 
 ## What's Inside
 
@@ -32,7 +32,7 @@ Drizzle ORM or raw SQL model definitions for PostgreSQL tables including `simula
 ## Usage
 
 ```typescript
-import { SimulationRun, FaultDomain, CapturedEvent, PromiseResult } from '@sibyl-shared';
+import { SimulationRun, FaultDomain, CapturedEvent, PromiseResult } from '@sibyl/shared';
 ```
 
 ## Development

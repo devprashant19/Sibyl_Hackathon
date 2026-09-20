@@ -1,6 +1,6 @@
-import { CapturedEvent, FaultScheduleTemplate, PromiseSeverity, PromiseResult } from '@sibyl-shared';
+import { CapturedEvent, FaultScheduleTemplate, PromiseSeverity, PromiseResult } from '@sibyl/shared';
 // We import types from core directly
-import { ProgrammaticPromise, PromiseContext, EvaluationResult } from '@sibyl-core';
+import { ProgrammaticPromise, PromiseContext, EvaluationResult } from '@sibyl/core';
 
 export interface InstallOptions {
   interceptHttp?: boolean;
