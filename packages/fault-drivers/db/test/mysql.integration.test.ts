@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { MySqlContainer, StartedMySqlContainer } from '@testcontainers/mysql';
 import mysql from 'mysql2/promise';
 import { DatabaseFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl-core';
+import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
 
 describe('MySQL DatabaseFaultDriver Integration', () => {

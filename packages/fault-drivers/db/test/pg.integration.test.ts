@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Pool } from 'pg';
 import { DatabaseFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl-core';
+import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
 
 describe('Postgres DatabaseFaultDriver Integration', () => {
@@ -176,20 +176,36 @@ describe('Postgres DatabaseFaultDriver Integration', () => {
     });
 
     const client = await wrappedPool.connect();
+    const statements = [
+      "INSERT INTO users (name) VALUES ('Tx1')", // statementsInTx = 0
+      "INSERT INTO users (name) VALUES ('Tx2')", // statementsInTx = 1 (should fail here!)
+      "INSERT INTO users (name) VALUES ('Tx3')", // never reached
+    ];
+    const succeeded: string[] = [];
+    let failed: { statement: string; error: any } | undefined;
 
-    try {
-      await client.query('BEGIN');
-      // statementsInTx = 0
-      await client.query("INSERT INTO users (name) VALUES ('Tx1')"); 
-      
-      // statementsInTx = 1 (should fail here!)
-      await client.query("INSERT INTO users (name) VALUES ('Tx2')"); 
-      
-      expect.fail('Should have dropped connection on 2nd statement');
-    } catch (e: any) {
-      expect(e.code).toBe('08006'); // connection dropped
-      await client.query('ROLLBACK'); // App handles rollback
+    await client.query('BEGIN');
+    for (const statement of statements) {
+      try {
+        await client.query(statement);
+        succeeded.push(statement);
+      } catch (error) {
+        failed = { statement, error };
+        break;
+      }
     }
+
+    expect(succeeded).toEqual([statements[0]]);
+    expect(failed?.statement).toBe(statements[1]);
+    expect(failed?.error.code).toBe('08006'); // connection dropped
+    expect(mockGetFaultDecision).toHaveBeenCalledWith('DATABASE', expect.objectContaining({
+      query: statements[1],
+      inTransaction: true,
+      statementsInTx: 1,
+    }));
+    expect(mockRecordEvent).toHaveBeenCalledTimes(1);
+
+    await client.query('ROLLBACK'); // App handles rollback
 
     const res = await pool.query('SELECT * FROM users');
     // The transaction rolled back, so NO users should be in the DB!
