@@ -1,110 +1,121 @@
-# @sibyl/integrations
+# Sibyl CI integrations
 
-CI/CD pipeline wrappers for running Sibyl simulations in continuous integration environments.
+Wrappers that run `sibyl ci` in CI and publish its JUnit report.
 
-## Overview
+## What every wrapper does
 
-This package provides pre-built configuration templates and wrapper scripts for popular CI/CD platforms. Each integration runs `sibyl ci` with platform-appropriate output formatting (JUnit XML, SARIF, etc.) and exits with a non-zero code on promise violations.
+```bash
+sibyl ci -c sibyl.config.ts --junit reports/sibyl-junit.xml [-n <iterations>] [--seed <seed>] \
+  [--strategy ucb1|mcts|bayesian] [--require-upload] [--allow-intermittent]
+```
 
-## Supported Platforms
+- **Exit code**: `0` when every run passed; `1` when any run failed or errored, when any run was
+  intermittent (unless `--allow-intermittent`), or when the config could not be loaded. The JUnit
+  report is written before the exit, and every wrapper publishes it even when the step fails.
+- **Upload**: set `SIBYL_API_URL` and `SIBYL_API_TOKEN` as CI secrets/variables to upload the session
+  to a Sibyl API. Without them the session is only stored locally in `.sibyl/sessions`. An
+  unreachable API does not fail the build unless `--require-upload` is passed.
+- No Redis, Postgres or Docker service is needed.
 
-### GitHub Actions
+## Prerequisite: installing the CLI
+
+`@sibyl/cli` is **not published to npm**, so `npx @sibyl/cli` does not work. The job must check out
+and install a project whose dependencies include `@sibyl/cli` and `@sibyl/core` (the config imports
+`@sibyl/core`, so it must resolve from the config's directory) — for example this monorepo, or a
+project that references the packages from a git checkout. The wrappers default to
+`npx --no sibyl`, which runs the locally installed binary and never downloads anything; override
+the `cli` parameter to point somewhere else (e.g. `node path/to/sibyl/packages/cli/bin/sibyl.js`).
+
+Node.js 22 is recommended.
+
+## GitHub Actions
+
+`github-action/action.yml` is a composite action:
 
 ```yaml
-# .github/workflows/sibyl.yml
-name: Sibyl Chaos Tests
-on: [push, pull_request]
-
 jobs:
   sibyl:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis:7
-        ports: [6379:6379]
+    env:
+      SIBYL_API_URL: ${{ secrets.SIBYL_API_URL }}
+      SIBYL_API_TOKEN: ${{ secrets.SIBYL_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - uses: <owner>/sibyl/packages/integrations/github-action@main
         with:
-          node-version: 20
-      - run: npm ci
-      - run: npx sibyl ci ./src \
-          --promise no-lost-updates \
-          --budget 200 \
-          --strategy mcts \
-          --junit-output results.xml
+          config: sibyl.config.ts
+          iterations: 200
       - uses: dorny/test-reporter@v1
         if: always()
         with:
-          name: Sibyl Results
-          path: results.xml
+          name: Sibyl
+          path: reports/sibyl-junit.xml
           reporter: java-junit
 ```
 
-### GitLab CI
+## GitLab CI
+
+`gitlab/sibyl.gitlab-ci.yml` is a CI component with inputs `config`, `iterations`, `seed`, `junit`,
+`require_upload`, `allow_intermittent`, `install`, `cli`, `image`:
 
 ```yaml
-# .gitlab-ci.yml
-sibyl:
-  image: node:20
-  services:
-    - redis:7
-  script:
-    - npm ci
-    - npx sibyl ci ./src --budget 200 --junit-output results.xml
-  artifacts:
-    reports:
-      junit: results.xml
+include:
+  - project: <group>/sibyl
+    file: packages/integrations/gitlab/sibyl.gitlab-ci.yml
+    inputs:
+      config: sibyl.config.ts
+      iterations: "200"
 ```
 
-### Jenkins
+Define `SIBYL_API_URL` and a masked `SIBYL_API_TOKEN` under Settings > CI/CD > Variables.
+
+## Jenkins
+
+`jenkins/vars/sibyl.groovy` is a shared-library step (needs the Credentials Binding and JUnit plugins):
 
 ```groovy
-// Jenkinsfile
+@Library('sibyl') _
 pipeline {
-    agent any
-    stages {
-        stage('Sibyl Chaos Test') {
-            steps {
-                sh 'npx sibyl ci ./src --budget 200 --junit-output results.xml'
-            }
-            post {
-                always {
-                    junit 'results.xml'
-                }
-            }
-        }
+  agent any
+  stages {
+    stage('Sibyl') {
+      steps {
+        sh 'corepack enable && pnpm install --frozen-lockfile'
+        sibyl(config: 'sibyl.config.ts', iterations: 200,
+              apiUrl: 'https://sibyl.example.com', apiTokenCredentialsId: 'sibyl-api-token')
+      }
     }
+  }
 }
 ```
 
-### CircleCI
+## CircleCI
+
+`circleci/orb.yml` provides a `ci` command and a `test` job:
 
 ```yaml
-# .circleci/config.yml
 version: 2.1
-jobs:
-  sibyl:
-    docker:
-      - image: cimg/node:20.0
-      - image: redis:7
-    steps:
-      - checkout
-      - run: npm ci
-      - run: npx sibyl ci ./src --budget 200 --junit-output results.xml
-      - store_test_results:
-          path: results.xml
+orbs:
+  sibyl: <namespace>/sibyl@x.y.z
+workflows:
+  reliability:
+    jobs:
+      - sibyl/test:
+          config: sibyl.config.ts
+          iterations: "200"
+          context: sibyl   # provides SIBYL_API_URL / SIBYL_API_TOKEN
 ```
 
-## GitHub App Integration
-
-For richer GitHub integration (PR comments with run summaries, status checks, inline annotations), see the [GitHub App Setup Guide](../../GITHUB_APP_SETUP.md).
-
-## Directory Structure
+## Directory structure
 
 ```
 integrations/
-├── circleci/     # CircleCI orb configuration
-├── gitlab/       # GitLab CI template
-└── jenkins/      # Jenkins shared library
+├── github-action/  # composite GitHub Action
+├── circleci/       # CircleCI orb
+├── gitlab/         # GitLab CI component
+└── jenkins/        # Jenkins shared-library step
 ```

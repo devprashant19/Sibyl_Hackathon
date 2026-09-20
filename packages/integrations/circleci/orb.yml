@@ -1,43 +1,96 @@
 version: 2.1
 description: |
-  Official CircleCI Orb for Sibyl Chaos Engineering.
-  Runs continuous reliability simulations natively in your CircleCI pipelines.
+  Runs Sibyl (deterministic fault-injection search) in CircleCI via `sibyl ci`.
+  The step fails when any run fails or errors (and, unless allow-intermittent is true, when any
+  run is intermittent) or when the config cannot be loaded. The JUnit report is stored either way.
+
+  Prerequisite: the Sibyl CLI is not published to npm. The `install` parameter must install a
+  project whose dependencies include @sibyl/cli and @sibyl/core (the config imports @sibyl/core).
+  Put SIBYL_API_URL and SIBYL_API_TOKEN in a context or project environment variables to upload.
 
 executors:
   default:
     description: "Node.js environment for running Sibyl"
     docker:
-      - image: cimg/node:20.0.0
+      - image: cimg/node:22.12
 
 commands:
-  run-chaos:
-    description: "Executes the Sibyl Chaos Engine"
+  ci:
+    description: "Runs sibyl ci and stores the JUnit report"
     parameters:
-      target:
+      config:
         type: string
         default: "sibyl.config.ts"
-        description: "Path to sibyl config file"
+        description: "Path to sibyl.config.ts"
       iterations:
-        type: integer
-        default: 100
-        description: "Number of permutations to evaluate"
+        type: string
+        default: ""
+        description: "Number of runs (-n). Empty uses the config's value"
+      seed:
+        type: string
+        default: ""
+        description: "Master seed. Empty picks a random seed"
+      junit:
+        type: string
+        default: "reports/sibyl-junit.xml"
+        description: "Where to write the JUnit XML report"
+      require-upload:
+        type: boolean
+        default: false
+      allow-intermittent:
+        type: boolean
+        default: false
+      cli:
+        type: string
+        default: "npx --no sibyl"
+        description: "Command that runs the CLI; the default never downloads from npm"
     steps:
       - run:
-          name: Run Sibyl CI
-          command: npx @sibyl/cli ci --target <<parameters.target>> --iterations <<parameters.iterations>>
+          name: sibyl ci
+          # Parameters are passed as environment variables and quoted in the script.
+          environment:
+            SIBYL_CONFIG: << parameters.config >>
+            SIBYL_ITERATIONS: << parameters.iterations >>
+            SIBYL_SEED: << parameters.seed >>
+            SIBYL_JUNIT: << parameters.junit >>
+            SIBYL_REQUIRE_UPLOAD: << parameters.require-upload >>
+            SIBYL_ALLOW_INTERMITTENT: << parameters.allow-intermittent >>
+            SIBYL_CLI: << parameters.cli >>
+          command: |
+            set -- ci -c "$SIBYL_CONFIG" --junit "$SIBYL_JUNIT"
+            if [ -n "$SIBYL_ITERATIONS" ]; then set -- "$@" -n "$SIBYL_ITERATIONS"; fi
+            if [ -n "$SIBYL_SEED" ]; then set -- "$@" --seed "$SIBYL_SEED"; fi
+            if [ "$SIBYL_REQUIRE_UPLOAD" = "true" ]; then set -- "$@" --require-upload; fi
+            if [ "$SIBYL_ALLOW_INTERMITTENT" = "true" ]; then set -- "$@" --allow-intermittent; fi
+            $SIBYL_CLI "$@"
+      - store_test_results:
+          path: << parameters.junit >>
+      - store_artifacts:
+          path: << parameters.junit >>
 
 jobs:
   test:
     executor: default
     parameters:
-      target:
+      install:
+        type: string
+        default: "sudo corepack enable && pnpm install --frozen-lockfile"
+        description: "Installs the project (must provide @sibyl/cli and @sibyl/core)"
+      config:
         type: string
         default: "sibyl.config.ts"
       iterations:
-        type: integer
-        default: 100
+        type: string
+        default: ""
+      junit:
+        type: string
+        default: "reports/sibyl-junit.xml"
     steps:
       - checkout
-      - run-chaos:
-          target: <<parameters.target>>
-          iterations: <<parameters.iterations>>
+      - run:
+          name: Install
+          command: << parameters.install >>
+      - ci:
+          config: << parameters.config >>
+          iterations: << parameters.iterations >>
+          junit: << parameters.junit >>
