@@ -15,6 +15,9 @@ export class SibylPatcher {
   private model: string;
 
   constructor(options: PatcherOptions) {
+    if (process.env.SIBYL_DISABLE_AI === 'true') {
+      throw new Error("AI features are explicitly disabled in this deployment (SIBYL_DISABLE_AI=true). To use AI features in an air-gapped environment, provide a local LLM endpoint.");
+    }
     this.anthropic = new Anthropic({ apiKey: options.apiKey });
     this.model = options.model || "claude-3-5-sonnet-20240620";
   }

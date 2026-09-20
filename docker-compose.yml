@@ -1,34 +1,56 @@
 version: '3.8'
 
 services:
-  postgres:
+  db:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: sibyl
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: sibyl_password
       POSTGRES_DB: sibyl_db
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - sibyl_pgdata:/var/lib/postgresql/data
+    restart: always
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: sibyl-admin
-      MINIO_ROOT_PASSWORD: sibyl-password
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
-      - miniodata:/data
+      - sibyl_redisdata:/data
+    restart: always
+
+  api:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["npm", "run", "start:api"]
+    environment:
+      - POSTGRES_URI=postgresql://sibyl:sibyl_password@db:5432/sibyl_db
+      - REDIS_URI=redis://redis:6379
+      # Security / Deployment Flags
+      - SIBYL_ENTERPRISE_SELF_HOSTED=true
+      - SIBYL_DISABLE_AI=${SIBYL_DISABLE_AI:-false}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
+
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["npm", "run", "start:dashboard"]
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: on-failure
 
 volumes:
-  pgdata:
-  miniodata:
+  sibyl_pgdata:
+  sibyl_redisdata:
