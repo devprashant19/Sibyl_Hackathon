@@ -16,7 +16,9 @@ export default tseslint.config(
       // The engine deals in arbitrary user payloads and driver internals; `any` is a deliberate choice
       // at those boundaries, not an oversight to be linted away.
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      // Unused parameters are usually required by an interface (a strategy's next(iterationIndex)), and
+      // `const { events, ...rest } = run` is how a field is omitted. Unused imports and locals are errors.
+      '@typescript-eslint/no-unused-vars': ['error', { args: 'none', ignoreRestSiblings: true, varsIgnorePattern: '^_', caughtErrors: 'none' }],
       '@typescript-eslint/no-unsafe-function-type': 'off',
     },
   },
