@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { HttpFaultDriver } from '../src/index';
-import type { DriverContext } from '@sibyl-core';
+import type { DriverContext } from '@sibyl/core';
 import { VirtualClock } from '../../../core/src/clock';
-import { FaultSpec } from '@sibyl-shared';
+import { FaultSpec } from '@sibyl/shared';
 import * as http from 'http';
 
 describe('HttpFaultDriver with VirtualClock', () => {
