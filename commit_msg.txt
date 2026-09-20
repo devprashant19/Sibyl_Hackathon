@@ -1,0 +1,4 @@
+feat(api): add API integration for app
+
+Additional updates:
+- feat(api): add API integration for server
